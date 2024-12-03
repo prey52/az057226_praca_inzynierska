@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Backend.Migrations
 {
     [DbContext(typeof(CardsDBContext))]
-    [Migration("20241202200001_initial")]
-    partial class initial
+    [Migration("20241203021803_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,26 +25,49 @@ namespace Backend.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Backend.Database.Card", b =>
+            modelBuilder.Entity("Backend.Database.AnswerCard", b =>
                 {
-                    b.Property<int>("CardId")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CardId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("DeckId")
+                    b.Property<int>("AnswerDeckId")
                         .HasColumnType("int");
 
-                    b.Property<string>("Description")
+                    b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("CardId");
+                    b.HasKey("Id");
 
-                    b.HasIndex("DeckId");
+                    b.HasIndex("AnswerDeckId");
 
-                    b.ToTable("Cards");
+                    b.ToTable("AnswerCards");
+                });
+
+            modelBuilder.Entity("Backend.Database.AnswerDeck", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AnswerDecks");
                 });
 
             modelBuilder.Entity("Backend.Database.DBUser", b =>
@@ -112,16 +135,38 @@ namespace Backend.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("Backend.Database.Deck", b =>
+            modelBuilder.Entity("Backend.Database.QuestionCard", b =>
                 {
-                    b.Property<int>("DeckId")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DeckId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("IsQuestionDeck")
-                        .HasColumnType("bit");
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuestionDeckId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuestionDeckId");
+
+                    b.ToTable("QuestionCards");
+                });
+
+            modelBuilder.Entity("Backend.Database.QuestionDeck", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -131,11 +176,11 @@ namespace Backend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.HasKey("DeckId");
+                    b.HasKey("Id");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Decks");
+                    b.ToTable("QuestionDecks");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -271,21 +316,43 @@ namespace Backend.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Backend.Database.Card", b =>
+            modelBuilder.Entity("Backend.Database.AnswerCard", b =>
                 {
-                    b.HasOne("Backend.Database.Deck", "Deck")
-                        .WithMany("Cards")
-                        .HasForeignKey("DeckId")
+                    b.HasOne("Backend.Database.AnswerDeck", "AnswerDeck")
+                        .WithMany("AnswerCards")
+                        .HasForeignKey("AnswerDeckId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Deck");
+                    b.Navigation("AnswerDeck");
                 });
 
-            modelBuilder.Entity("Backend.Database.Deck", b =>
+            modelBuilder.Entity("Backend.Database.AnswerDeck", b =>
                 {
                     b.HasOne("Backend.Database.DBUser", "User")
-                        .WithMany("Decks")
+                        .WithMany("AnswerDecks")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Backend.Database.QuestionCard", b =>
+                {
+                    b.HasOne("Backend.Database.QuestionDeck", "QuestionDeck")
+                        .WithMany("QuestionCards")
+                        .HasForeignKey("QuestionDeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QuestionDeck");
+                });
+
+            modelBuilder.Entity("Backend.Database.QuestionDeck", b =>
+                {
+                    b.HasOne("Backend.Database.DBUser", "User")
+                        .WithMany("QuestionDecks")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -344,14 +411,21 @@ namespace Backend.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Backend.Database.DBUser", b =>
+            modelBuilder.Entity("Backend.Database.AnswerDeck", b =>
                 {
-                    b.Navigation("Decks");
+                    b.Navigation("AnswerCards");
                 });
 
-            modelBuilder.Entity("Backend.Database.Deck", b =>
+            modelBuilder.Entity("Backend.Database.DBUser", b =>
                 {
-                    b.Navigation("Cards");
+                    b.Navigation("AnswerDecks");
+
+                    b.Navigation("QuestionDecks");
+                });
+
+            modelBuilder.Entity("Backend.Database.QuestionDeck", b =>
+                {
+                    b.Navigation("QuestionCards");
                 });
 #pragma warning restore 612, 618
         }

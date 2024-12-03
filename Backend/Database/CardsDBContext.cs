@@ -13,27 +13,38 @@ namespace Backend.Database
 		{
 		}
 
-		// DbSets for your entities
-		public DbSet<Deck> Decks { get; set; }
-		public DbSet<Card> Cards { get; set; }
+        // DbSets for your entities
+        public DbSet<DBUser> User { get; set; }
+        public DbSet<QuestionDeck> QuestionDecks { get; set; }
+        public DbSet<AnswerDeck> AnswerDecks { get; set; }
+        public DbSet<QuestionCard> QuestionCards { get; set; }
+        public DbSet<AnswerCard> AnswerCards { get; set; }
 
-		protected override void OnModelCreating(ModelBuilder builder)
-		{
-			base.OnModelCreating(builder);
 
-			// Deck to User relationship
-			builder.Entity<Deck>()
-				.HasOne(d => d.User)
-				.WithMany(u => u.Decks)
-				.HasForeignKey(d => d.UserId)
-				.OnDelete(DeleteBehavior.Cascade);
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
 
-			// Card to Deck relationship
-			builder.Entity<Card>()
-				.HasOne(c => c.Deck)
-				.WithMany(d => d.Cards)
-				.HasForeignKey(c => c.DeckId)
-				.OnDelete(DeleteBehavior.Cascade);
-		}
-	}
+            // Example of custom configuration
+            modelBuilder.Entity<DBUser>()
+                .HasMany(u => u.QuestionDecks)
+                .WithOne(q => q.User)
+                .HasForeignKey(q => q.UserId);
+
+            modelBuilder.Entity<DBUser>()
+                .HasMany(u => u.AnswerDecks)
+                .WithOne(a => a.User)
+                .HasForeignKey(a => a.UserId);
+
+            modelBuilder.Entity<QuestionDeck>()
+                .HasMany(q => q.QuestionCards)
+                .WithOne(qc => qc.QuestionDeck)
+                .HasForeignKey(qc => qc.QuestionDeckId);
+
+            modelBuilder.Entity<AnswerDeck>()
+                .HasMany(a => a.AnswerCards)
+                .WithOne(ac => ac.AnswerDeck)
+                .HasForeignKey(ac => ac.AnswerDeckId);
+        }
+    }
 }

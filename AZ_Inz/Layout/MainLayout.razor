@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject CustomAuthStateProvider AuthStateProvider
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +8,10 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            @if (IsAuthenticated)
+            {
+                <p>Welcome, @Username!</p>
+            }
         </div>
 
         <article class="content px-4">
@@ -15,3 +19,54 @@
         </article>
     </main>
 </div>
+
+
+
+@code {
+    private bool IsAuthenticated = false;
+    private string Username = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to authentication state change notifications
+        AuthStateProvider.AuthenticationStateChangedEvent += OnAuthenticationStateChanged;
+
+        // Get the initial authentication state
+        await UpdateAuthenticationState();
+    }
+
+    private async Task UpdateAuthenticationState()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        IsAuthenticated = authState.User.Identity.IsAuthenticated;
+
+        if (IsAuthenticated)
+        {
+            // Get the username from claims, assuming the username is stored in the claim named "username"
+            var usernameClaim = authState.User.Identity.Name;
+            if (usernameClaim != null)
+            {
+                Username = usernameClaim;
+            }
+        }
+        else
+        {
+            Username = string.Empty;
+        }
+
+        // Trigger re-render of the layout
+        StateHasChanged();
+    }
+
+    private void OnAuthenticationStateChanged()
+    {
+        // When authentication state changes, update the state and re-render the layout
+        InvokeAsync(UpdateAuthenticationState);
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from authentication state changes to avoid memory leaks
+        AuthStateProvider.AuthenticationStateChangedEvent -= OnAuthenticationStateChanged;
+    }
+}

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Backend.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -67,6 +67,26 @@ namespace Backend.Migrations
                         name: "FK_AspNetRoleClaims_AspNetRoles_RoleId",
                         column: x => x.RoleId,
                         principalTable: "AspNetRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AnswerDecks",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AnswerDecks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AnswerDecks_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -157,20 +177,19 @@ namespace Backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Decks",
+                name: "QuestionDecks",
                 columns: table => new
                 {
-                    DeckId = table.Column<int>(type: "int", nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IsQuestionDeck = table.Column<bool>(type: "bit", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Decks", x => x.DeckId);
+                    table.PrimaryKey("PK_QuestionDecks", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Decks_AspNetUsers_UserId",
+                        name: "FK_QuestionDecks_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
@@ -178,24 +197,55 @@ namespace Backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Cards",
+                name: "AnswerCards",
                 columns: table => new
                 {
-                    CardId = table.Column<int>(type: "int", nullable: false)
+                    Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    DeckId = table.Column<int>(type: "int", nullable: false)
+                    Text = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    AnswerDeckId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Cards", x => x.CardId);
+                    table.PrimaryKey("PK_AnswerCards", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Cards_Decks_DeckId",
-                        column: x => x.DeckId,
-                        principalTable: "Decks",
-                        principalColumn: "DeckId",
+                        name: "FK_AnswerCards_AnswerDecks_AnswerDeckId",
+                        column: x => x.AnswerDeckId,
+                        principalTable: "AnswerDecks",
+                        principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateTable(
+                name: "QuestionCards",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Text = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Number = table.Column<int>(type: "int", nullable: false),
+                    QuestionDeckId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_QuestionCards", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_QuestionCards_QuestionDecks_QuestionDeckId",
+                        column: x => x.QuestionDeckId,
+                        principalTable: "QuestionDecks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AnswerCards_AnswerDeckId",
+                table: "AnswerCards",
+                column: "AnswerDeckId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AnswerDecks_UserId",
+                table: "AnswerDecks",
+                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
@@ -237,19 +287,22 @@ namespace Backend.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Cards_DeckId",
-                table: "Cards",
-                column: "DeckId");
+                name: "IX_QuestionCards_QuestionDeckId",
+                table: "QuestionCards",
+                column: "QuestionDeckId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Decks_UserId",
-                table: "Decks",
+                name: "IX_QuestionDecks_UserId",
+                table: "QuestionDecks",
                 column: "UserId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "AnswerCards");
+
             migrationBuilder.DropTable(
                 name: "AspNetRoleClaims");
 
@@ -266,13 +319,16 @@ namespace Backend.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
-                name: "Cards");
+                name: "QuestionCards");
+
+            migrationBuilder.DropTable(
+                name: "AnswerDecks");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
-                name: "Decks");
+                name: "QuestionDecks");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");

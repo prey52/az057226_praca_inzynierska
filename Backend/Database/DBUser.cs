@@ -4,7 +4,8 @@ namespace Backend.Database
 {
 	public class DBUser : IdentityUser
 	{
-		public ICollection<Deck> Decks { get; set; }
-	}
+        public ICollection<QuestionDeck> QuestionDecks { get; set; }
+        public ICollection<AnswerDeck> AnswerDecks { get; set; }
+    }
 
 }
