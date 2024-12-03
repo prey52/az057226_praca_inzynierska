@@ -1,0 +1,59 @@
+﻿@page "/login"
+@using Blazored.LocalStorage
+@using System.Security.Claims
+
+@inject HttpClient Http
+@inject ILocalStorageService LocalStorage
+@inject CustomAuthStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<h3>Login</h3>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <p style="color:red">@ErrorMessage</p>
+}
+
+<input @bind="Username" placeholder="Username" />
+<input @bind="Password" type="password" placeholder="Password" />
+<button @onclick="LoginUser">Login</button>
+
+@code {
+    private string Username { get; set; }
+    private string Password { get; set; }
+    private string ErrorMessage { get; set; }
+
+    public class LoginResponse
+    {
+        public string Token { get; set; }
+    }
+
+
+    private async Task LoginUser()
+    {
+        var response = await Http.PostAsJsonAsync("https://localhost:7060/api/auth/login", new { Username, Password });
+
+        if (response.IsSuccessStatusCode)
+        {
+            // Deserialize response into a strongly-typed object
+            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+
+            if (result != null && !string.IsNullOrEmpty(result.Token))
+            {
+                await LocalStorage.SetItemAsync("authToken", result.Token);
+                AuthStateProvider.NotifyUserAuthentication(result.Token); // Notify the authentication state provider
+
+                Navigation.NavigateTo("/"); // Navigate to the home page or dashboard
+            }
+            else
+            {
+                ErrorMessage = "Invalid token received.";
+            }
+        }
+        else
+        {
+            ErrorMessage = "Invalid login attempt.";
+        }
+    }
+
+}
