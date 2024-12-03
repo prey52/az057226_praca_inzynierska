@@ -28,14 +28,12 @@
         public string Token { get; set; }
     }
 
-
     private async Task LoginUser()
     {
         var response = await Http.PostAsJsonAsync("https://localhost:7060/api/auth/login", new { Username, Password });
 
         if (response.IsSuccessStatusCode)
         {
-            // Deserialize response into a strongly-typed object
             var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
 
             if (result != null && !string.IsNullOrEmpty(result.Token))
@@ -43,7 +41,7 @@
                 await LocalStorage.SetItemAsync("authToken", result.Token);
                 AuthStateProvider.NotifyUserAuthentication(result.Token); // Notify the authentication state provider
 
-                Navigation.NavigateTo("/"); // Navigate to the home page or dashboard
+                Navigation.NavigateTo("/");
             }
             else
             {

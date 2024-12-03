@@ -5,14 +5,16 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
 
-
-
 namespace AZ_Inz
 {
     public class CustomAuthStateProvider : AuthenticationStateProvider
     {
+        private ClaimsPrincipal _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
         private readonly ILocalStorageService _localStorage;
         private readonly HttpClient _httpClient;
+
+        // Event to notify components when the authentication state changes
+        public event Action AuthenticationStateChangedEvent;
 
         public CustomAuthStateProvider(ILocalStorageService localStorage, HttpClient httpClient)
         {
@@ -20,6 +22,7 @@ namespace AZ_Inz
             _httpClient = httpClient;
         }
 
+        // Method to get the current authentication state
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             var savedToken = await _localStorage.GetItemAsync<string>("authToken");
@@ -33,6 +36,7 @@ namespace AZ_Inz
             var handler = new JwtSecurityTokenHandler();
             var token = handler.ReadJwtToken(savedToken);
 
+            // Check if token is expired
             if (token.ValidTo < DateTime.UtcNow)
             {
                 await _localStorage.RemoveItemAsync("authToken");
@@ -45,24 +49,34 @@ namespace AZ_Inz
             return new AuthenticationState(user);
         }
 
+        // Method to notify that the user has logged in and update authentication state
         public void NotifyUserAuthentication(string token)
         {
             var identity = new ClaimsIdentity(ParseClaimsFromJwt(token), "Bearer");
-            var user = new ClaimsPrincipal(identity);
-            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(user)));
+            _currentUser = new ClaimsPrincipal(identity);
+
+            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_currentUser)));
+
+            // Trigger the event to notify other components
+            AuthenticationStateChangedEvent?.Invoke();
         }
 
+        // Method to notify that the user has logged out and update authentication state
         public void NotifyUserLogout()
         {
-            var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
-            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(anonymous)));
+            _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
+
+            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_currentUser)));
+
+            // Trigger the event to notify other components
+            AuthenticationStateChangedEvent?.Invoke();
         }
 
         // Helper method to parse JWT claims
         private IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
         {
             var payload = jwt.Split('.')[1];
-            var jsonBytes = WebEncoders.Base64UrlDecode(payload);
+            var jsonBytes = WebEncoders.Base64UrlDecode(payload);  // Use WebEncoders for proper Base64 URL decoding
             var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
 
             return keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString()));
