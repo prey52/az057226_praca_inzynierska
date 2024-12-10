@@ -23,7 +23,7 @@ builder.Services.AddIdentity<DBUser, IdentityRole>()
 	.AddEntityFrameworkStores<CardsDBContext>()
 	.AddDefaultTokenProviders();
 
-//JWT
+//JWT (JSON Web Tokens)
 builder.Services.AddAuthentication(options =>
 {
 	options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

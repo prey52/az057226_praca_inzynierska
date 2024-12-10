@@ -31,6 +31,7 @@ namespace Backend.Controllers
                 var authClaims = new[]
                 {
                 new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
@@ -73,7 +74,7 @@ namespace Backend.Controllers
 
                 if (result.Succeeded)
                 {
-                    var token = await GenerateJwtToken(user);
+                    var token = await GenerateJwtToken(user); //Required(?)
                     return Ok(new { token });
                 }
 
@@ -98,7 +99,7 @@ namespace Backend.Controllers
             {
                 var claims = new[]
                 {
-            new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Avoid null values
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };

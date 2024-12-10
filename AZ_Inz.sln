@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34723.18
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AZ_Inz", "AZ_Inz\AZ_Inz.csproj", "{67A947CB-3538-467F-BE40-5AB33F960BD5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AZ_Inz", "AZ_Inz\AZ_Inz.csproj", "{67A947CB-3538-467F-BE40-5AB33F960BD5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backend", "Backend\Backend.csproj", "{5A0BEDA0-8C43-45BB-A60A-F3F29E3BFBAA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backend", "Backend\Backend.csproj", "{5A0BEDA0-8C43-45BB-A60A-F3F29E3BFBAA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

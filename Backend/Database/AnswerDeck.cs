@@ -12,5 +12,4 @@
         // Navigation property
         public ICollection<AnswerCard> AnswerCards { get; set; }
     }
-
 }

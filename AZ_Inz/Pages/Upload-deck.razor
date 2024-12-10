@@ -1,0 +1,124 @@
+﻿@page "/upload-deck"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+@using System.ComponentModel.DataAnnotations;
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<h3>Upload Deck</h3>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <p style="color:red">@ErrorMessage</p>
+}
+@if (!string.IsNullOrEmpty(SuccessMessage))
+{
+    <p style="color:green">@SuccessMessage</p>
+}
+
+<EditForm Model="@deckData" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="form-group">
+        <label for="deckName">Deck Name</label>
+        <InputText id="deckName" class="form-control" @bind-Value="deckData.DeckName" />
+    </div>
+
+    <div class="form-group">
+        <label for="deckType">Deck Type</label>
+        <InputSelect id="deckType" class="form-control" @bind-Value="deckData.DeckType">
+            <option value="">Select Deck Type</option>
+            <option value="Questions">Questions</option>
+            <option value="Answers">Answers</option>
+        </InputSelect>
+    </div>
+
+    <div class="form-group">
+        <label for="docFile">Upload .docx File</label>
+        <InputFile OnChange="@HandleFileSelected" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">Submit</button>
+</EditForm>
+
+@code {
+    private DeckData deckData = new DeckData();
+    private bool isSubmitting = false;
+    private string ErrorMessage = string.Empty;
+    private string SuccessMessage = string.Empty;
+    private IBrowserFile uploadedFile;
+
+    private async Task HandleValidSubmit()
+    {
+        if (uploadedFile == null)
+        {
+            ErrorMessage = "Please upload a .docx file.";
+            return;
+        }
+
+        isSubmitting = true;
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
+
+        try
+        {
+            // Retrieve the token from local storage
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                ErrorMessage = "User is not authenticated.";
+                return;
+            }
+
+            // Create the multipart form data content
+            var formData = new MultipartFormDataContent();
+            formData.Add(new StringContent(deckData.DeckName), "DeckName");
+            formData.Add(new StringContent(deckData.DeckType), "DeckType");
+
+            // Add the file to the request
+            var fileContent = new StreamContent(uploadedFile.OpenReadStream(maxAllowedSize: 10485760)); // 10MB limit
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(uploadedFile.ContentType);
+            formData.Add(fileContent, "File", uploadedFile.Name);
+
+            // Set the Authorization header with the Bearer token
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            // Post to the API
+            var response = await Http.PostAsync("https://localhost:7060/api/decks/upload", formData);
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Deck uploaded successfully!";
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                ErrorMessage = $"Error: {await response.Content.ReadAsStringAsync()}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        uploadedFile = e.File;
+    }
+
+    public class DeckData
+    {
+        [Required(ErrorMessage = "Deck Name is required.")]
+        public string DeckName { get; set; }
+
+        [Required(ErrorMessage = "Deck Type is required.")]
+        public string DeckType { get; set; } // "questions" or "answers"
+    }
+}

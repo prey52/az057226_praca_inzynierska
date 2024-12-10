@@ -25,7 +25,6 @@ namespace Backend.Database
         {
             base.OnModelCreating(modelBuilder);
 
-            // Example of custom configuration
             modelBuilder.Entity<DBUser>()
                 .HasMany(u => u.QuestionDecks)
                 .WithOne(q => q.User)
