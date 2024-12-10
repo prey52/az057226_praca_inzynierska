@@ -28,27 +28,12 @@ namespace Backend.Controllers
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
                 // Generate JWT Token
-                var authClaims = new[]
-                {
-                new Claim(ClaimTypes.Name, user.UserName),
-                new Claim(ClaimTypes.NameIdentifier, user.Id),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-                var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-
-                var token = new JwtSecurityToken(
-                    issuer: _configuration["Jwt:Issuer"],
-                    audience: _configuration["Jwt:Audience"],
-                    expires: DateTime.Now.AddHours(3),
-                    claims: authClaims,
-                    signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-                );
+                var token = await GenerateJwtToken(user);
 
                 return Ok(new
                 {
-                    token = new JwtSecurityTokenHandler().WriteToken(token),
-                    expiration = token.ValidTo
+                    token,
+                    expiration = DateTime.UtcNow.AddDays(1)
                 });
             }
             return Unauthorized();
@@ -74,7 +59,7 @@ namespace Backend.Controllers
 
                 if (result.Succeeded)
                 {
-                    var token = await GenerateJwtToken(user); //Required(?)
+                    var token = await GenerateJwtToken(user); // Generate JWT Token after successful registration
                     return Ok(new { token });
                 }
 
@@ -92,16 +77,17 @@ namespace Backend.Controllers
             }
         }
 
-
         private async Task<string> GenerateJwtToken(DBUser user)
         {
             try
             {
+                // Add the claims for both registration and login
                 var claims = new[]
                 {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Avoid null values
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new Claim(ClaimTypes.Name, user.UserName), // Username
+            new Claim(ClaimTypes.NameIdentifier, user.Id), // User ID (unique identifier)
+            new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Email
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // Unique JWT ID
         };
 
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
@@ -129,7 +115,6 @@ namespace Backend.Controllers
                 throw;
             }
         }
-
     }
 
     public class RegisterModel

@@ -25,22 +25,16 @@ public class DecksController : ControllerBase
         _userManager = userManager;
     }
 
-    private string GetUserIdFromToken(string token)
+    private async Task<string> GetUserIdFromToken(string token)
     {
         var handler = new JwtSecurityTokenHandler();
         try
         {
             var jwtToken = handler.ReadJwtToken(token);
+            var userEmail = jwtToken?.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Email)?.Value;
+            DBUser user = await _userManager.FindByEmailAsync(userEmail);
 
-            foreach (var claim in jwtToken.Claims)
-            {
-                Console.WriteLine($"Claim type: {claim.Type}, value: {claim.Value}");
-            }
-
-
-            var userId = jwtToken?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-            
-            return userId;
+            return user.Id;
         }
         catch (Exception)
         {
@@ -53,7 +47,7 @@ public class DecksController : ControllerBase
     public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDto model)
     {
         var token = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "").Trim();
-        var userId = GetUserIdFromToken(token);
+        var userId = await GetUserIdFromToken(token);
 
 
         if (string.IsNullOrEmpty(model.DeckName) || string.IsNullOrEmpty(model.DeckType))
