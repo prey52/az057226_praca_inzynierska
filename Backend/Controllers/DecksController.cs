@@ -76,15 +76,37 @@ public class DecksController : ControllerBase
                     using (var wordDoc = WordprocessingDocument.Open(stream, false))
                     {
                         var body = wordDoc.MainDocumentPart.Document.Body;
-                        var lines = body.InnerText.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 
-                        foreach (var line in lines)
+                        foreach (var paragraph in body.Elements<Paragraph>())
                         {
-                            deck.QuestionCards.Add(new QuestionCard
+                            var text = paragraph.InnerText.Trim();
+                            if (!string.IsNullOrWhiteSpace(text))
                             {
-                                Text = line.Trim(),
-                                Number = 1 // REGEX: check "_____"
-                            });
+                                // Check for and standardize blank spaces ("_____")
+                                var standardizedText = System.Text.RegularExpressions.Regex.Replace(
+                                    text,                  // Input text
+                                    "_+",                  // Match one or more underscores
+                                    "_____"                // Replace with exactly 5 underscores
+                                );
+
+                                // Count occurrences of "_____" (blank spaces)
+                                int blankSpaces = System.Text.RegularExpressions.Regex.Matches(
+                                    standardizedText,      // Input text
+                                    "_____").Count;        // Pattern for 5 underscores
+
+                                // If no blank spaces, set Number to 1
+                                if (blankSpaces == 0)
+                                {
+                                    blankSpaces = 1;
+                                }
+
+                                // Add the processed QuestionCard to the deck
+                                deck.QuestionCards.Add(new QuestionCard
+                                {
+                                    Text = standardizedText,
+                                    Number = blankSpaces
+                                });
+                            }
                         }
                     }
                 }
@@ -94,6 +116,8 @@ public class DecksController : ControllerBase
 
                 return Ok(new { message = "Questions deck uploaded successfully." });
             }
+
+
             else if (model.DeckType == "Answers")
             {
                 var deck = new AnswerDeck
@@ -135,6 +159,7 @@ public class DecksController : ControllerBase
                 return BadRequest("Invalid deck type. Allowed values are 'Questions' or 'Answers'.");
             }
         }
+
         catch (Exception ex)
         {
             return StatusCode(500, $"Internal server error: {ex.Message}");
