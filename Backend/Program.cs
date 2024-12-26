@@ -6,8 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -37,11 +35,26 @@ builder.Services.AddAuthentication(options =>
 		ValidateAudience = true,
 		ValidateLifetime = true,
 		ValidateIssuerSigningKey = true,
-		ValidIssuer = builder.Configuration["Jwt:Issuer"],
-		ValidAudience = builder.Configuration["Jwt:Audience"],
+		ValidIssuer = builder.Configuration["Jwt:Issuer"], //weird, but it works
+		ValidAudience = builder.Configuration["Jwt:Issuer"], //read about it later
 		IssuerSigningKey = new SymmetricSecurityKey(
 			System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
 	};
+
+	//debug
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine($"Token failed validation: {context.Exception.Message}");
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            Console.WriteLine("Token validated successfully.");
+            return Task.CompletedTask;
+        }
+    };
 });
 
 //CORS
@@ -67,10 +80,18 @@ app.UseCors("AllowFrontend");
 
 //DEBUG info
 app.UseDeveloperExceptionPage(); // Only in Development!
+app.Use(async (context, next) =>
+{
+    var token = context.Request.Headers["Authorization"].ToString();
+    Console.WriteLine($"Authorization Header: {token}");
+    await next.Invoke();
+});
+
 
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -25,6 +25,7 @@ public class DecksController : ControllerBase
         _userManager = userManager;
     }
 
+    //old
     private async Task<string> GetUserIdFromToken(string token)
     {
         var handler = new JwtSecurityTokenHandler();
@@ -42,12 +43,28 @@ public class DecksController : ControllerBase
         }
     }
 
-
+    [Authorize]
     [HttpPost("upload")]
     public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDto model)
     {
-        var token = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "").Trim();
-        var userId = await GetUserIdFromToken(token);
+        //old
+        //var token = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "").Trim();
+        //var userId = await GetUserIdFromToken(token);
+
+        //debug:
+        /*foreach (var header in HttpContext.Request.Headers)
+        {
+            Console.WriteLine($"{header.Key}: {header.Value}");
+        }
+
+
+        var claims = this.User.Claims.ToList();
+        foreach (var claim in claims)
+        {
+            Console.WriteLine($"Claim type: {claim.Type}, value: {claim.Value}");
+        }*/
+
+        var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
 
         if (string.IsNullOrEmpty(model.DeckName) || string.IsNullOrEmpty(model.DeckType))

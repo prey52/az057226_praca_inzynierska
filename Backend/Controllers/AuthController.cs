@@ -27,7 +27,6 @@ namespace Backend.Controllers
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
-                // Generate JWT Token
                 var token = await GenerateJwtToken(user);
 
                 return Ok(new
@@ -84,11 +83,12 @@ namespace Backend.Controllers
                 // Add the claims for both registration and login
                 var claims = new[]
                 {
-            new Claim(ClaimTypes.Name, user.UserName), // Username
-            new Claim(ClaimTypes.NameIdentifier, user.Id), // User ID (unique identifier)
-            new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Email
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // Unique JWT ID
-        };
+                new Claim(ClaimTypes.Name, user.UserName), // Username
+                new Claim(ClaimTypes.NameIdentifier, user.Id), // User ID (unique identifier)
+                new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Email
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique JWT ID
+                new Claim(JwtRegisteredClaimNames.Aud, _configuration["Jwt:Issuer"]) // Ensure this is set correctly
+                };
 
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
                 if (key == null || key.KeySize == 0)
@@ -99,9 +99,9 @@ namespace Backend.Controllers
                 var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
                 var token = new JwtSecurityToken(
-                    _configuration["Jwt:Issuer"],
-                    _configuration["Jwt:Issuer"],
-                    claims,
+                    issuer: _configuration["Jwt:Issuer"], // Backend URL
+                    audience: _configuration["Jwt:Audience"], // Frontend URL
+                    claims: claims,
                     expires: DateTime.UtcNow.AddDays(1),
                     signingCredentials: creds
                 );
