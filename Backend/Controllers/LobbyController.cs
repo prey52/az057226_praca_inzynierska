@@ -32,7 +32,7 @@ namespace Backend.Controllers
         [HttpPost("update-lobby")]
         public async Task<IActionResult> UpdateLobby([FromBody] LobbyUpdateDto dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var lobby = _lobbyManager.GetLobby(dto.LobbyId);
 
             if (lobby == null) return NotFound("Lobby not found.");
@@ -50,7 +50,7 @@ namespace Backend.Controllers
         [HttpPost("join-lobby")]
         public async Task<IActionResult> JoinLobby([FromBody] string lobbyId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var lobby = _lobbyManager.GetLobby(lobbyId);
 
             if (lobby == null) return NotFound("Lobby not found.");
