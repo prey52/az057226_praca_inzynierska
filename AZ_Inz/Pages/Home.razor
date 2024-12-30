@@ -1,7 +1,76 @@
-﻿@page "/"
+﻿@page "/lobby"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
 
-<PageTitle>Home</PageTitle>
+<h2>Lobby Management</h2>
 
-<h1>Karty (przeciwko ludzkości)</h1>
+<div>
+    <button @onclick="CreateLobby">Create Lobby</button>
+</div>
 
-Strona w budowie
+<div style="margin-top: 20px;">
+    <h3>Join Lobby</h3>
+    <form @onsubmit="JoinLobby">
+        <label for="lobbyId">Lobby ID:</label>
+        <input type="text" id="lobbyId" @bind="LobbyId" required />
+        <button type="submit">Join Lobby</button>
+    </form>
+</div>
+
+@if (ErrorMessage != null)
+{
+    <p style="color:red;">@ErrorMessage</p>
+}
+
+@code {
+    private string LobbyId;
+    private string ErrorMessage;
+
+    private async Task CreateLobby()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync<object>("/api/lobby/create-lobby", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LobbyResponse>();
+                NavigationManager.NavigateTo($"/lobby/{result.LobbyId}");
+            }
+            else
+            {
+                ErrorMessage = "Failed to create lobby.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+
+    private async Task JoinLobby()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/lobby/join-lobby", LobbyId);
+            if (response.IsSuccessStatusCode)
+            {
+                NavigationManager.NavigateTo($"/lobby/{LobbyId}");
+            }
+            else
+            {
+                ErrorMessage = "Failed to join lobby. Please check the Lobby ID.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private class LobbyResponse
+    {
+        public string LobbyId { get; set; }
+    }
+}

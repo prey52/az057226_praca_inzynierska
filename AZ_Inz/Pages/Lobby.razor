@@ -1,0 +1,121 @@
+﻿@page "/lobby/{LobbyId}"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<h2>Lobby: @LobbyId</h2>
+
+<div style="display: flex;">
+    <!-- Player List Section -->
+    <div style="width: 50%; border-right: 1px solid black; padding-right: 20px;">
+        <h3>Players</h3>
+        <ul>
+            @foreach (var player in Players)
+            {
+                <li>@player</li>
+            }
+        </ul>
+    </div>
+
+    <!-- Host Options Section -->
+    <div style="width: 50%; padding-left: 20px;">
+        @if (IsHost)
+        {
+            <h3>Lobby Settings</h3>
+            <form>
+                <div>
+                    <label for="scoreToWin">Score to Win:</label>
+                    <input type="number" id="scoreToWin" @bind="ScoreToWin" />
+                </div>
+
+                <div style="margin-top: 10px;">
+                    <label for="cardDecks">Choose Card Decks:</label>
+                    <select id="cardDecks" multiple @bind="SelectedDecks">
+                        @foreach (var deck in AvailableDecks)
+                        {
+                            <option value="@deck">@deck</option>
+                        }
+                    </select>
+                </div>
+
+                <button type="button" style="margin-top: 10px;" @onclick="StartGame">Start Game</button>
+            </form>
+        }
+        else
+        {
+            <p>Waiting for the host to start the game...</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string LobbyId { get; set; }
+
+    private List<string> Players = new();
+    private bool IsHost = false;
+    private int ScoreToWin;
+    private List<string> SelectedDecks = new();
+    private List<string> AvailableDecks = new() { "Deck 1", "Deck 2", "Deck 3" };
+
+    private HubConnection _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Retrieve the token from localStorage using JavaScript Interop
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "token");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Console.WriteLine("No token found in localStorage.");
+            return;
+        }
+
+        // Set up SignalR connection
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/lobbyHub"), options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult(token);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        // Set up SignalR event handlers
+        _hubConnection.On<List<string>>("UpdatePlayers", (updatedPlayers) =>
+        {
+            Players = updatedPlayers;
+            StateHasChanged();
+        });
+
+        _hubConnection.On<bool>("SetHost", (isHost) =>
+        {
+            IsHost = isHost;
+            StateHasChanged();
+        });
+
+        // Start connection and join lobby
+        await _hubConnection.StartAsync();
+        await _hubConnection.InvokeAsync("JoinLobby", LobbyId);
+    }
+
+    private async Task StartGame()
+    {
+        try
+        {
+            await _hubConnection.InvokeAsync("StartGame", new { ScoreToWin, SelectedDecks });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting game: {ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+        {
+            await _hubConnection.StopAsync();
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}

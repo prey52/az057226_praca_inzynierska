@@ -2,7 +2,7 @@ using AZ_Inz;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
-using Blazored.LocalStorage; // Optional for storing
+using Blazored.LocalStorage;
 
 
 
