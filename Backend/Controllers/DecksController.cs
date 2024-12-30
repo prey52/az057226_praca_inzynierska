@@ -47,25 +47,8 @@ public class DecksController : ControllerBase
     [HttpPost("upload")]
     public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDto model)
     {
-        //old
-        //var token = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "").Trim();
-        //var userId = await GetUserIdFromToken(token);
-
-        //debug:
-        /*foreach (var header in HttpContext.Request.Headers)
-        {
-            Console.WriteLine($"{header.Key}: {header.Value}");
-        }
-
-
-        var claims = this.User.Claims.ToList();
-        foreach (var claim in claims)
-        {
-            Console.WriteLine($"Claim type: {claim.Type}, value: {claim.Value}");
-        }*/
 
         var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-
 
         if (string.IsNullOrEmpty(model.DeckName) || string.IsNullOrEmpty(model.DeckType))
         {
@@ -99,25 +82,21 @@ public class DecksController : ControllerBase
                             var text = paragraph.InnerText.Trim();
                             if (!string.IsNullOrWhiteSpace(text))
                             {
-                                // Check for and standardize blank spaces ("_____")
                                 var standardizedText = System.Text.RegularExpressions.Regex.Replace(
-                                    text,                  // Input text
-                                    "_+",                  // Match one or more underscores
-                                    "_____"                // Replace with exactly 5 underscores
+                                    text,
+                                    "_+",
+                                    "_____"
                                 );
 
-                                // Count occurrences of "_____" (blank spaces)
                                 int blankSpaces = System.Text.RegularExpressions.Regex.Matches(
-                                    standardizedText,      // Input text
-                                    "_____").Count;        // Pattern for 5 underscores
+                                    standardizedText,
+                                    "_____").Count;
 
-                                // If no blank spaces, set Number to 1
                                 if (blankSpaces == 0)
                                 {
                                     blankSpaces = 1;
                                 }
 
-                                // Add the processed QuestionCard to the deck
                                 deck.QuestionCards.Add(new QuestionCard
                                 {
                                     Text = standardizedText,
@@ -133,7 +112,6 @@ public class DecksController : ControllerBase
 
                 return Ok(new { message = "Questions deck uploaded successfully." });
             }
-
 
             else if (model.DeckType == "Answers")
             {
@@ -172,7 +150,6 @@ public class DecksController : ControllerBase
 
             else
             {
-                // Return an error if the deck type is invalid
                 return BadRequest("Invalid deck type. Allowed values are 'Questions' or 'Answers'.");
             }
         }

@@ -1,7 +1,10 @@
-﻿@page "/lobby"
+﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
+@using System.Net.Http.Headers;
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject NavigationManager NavigationManager
 @inject HttpClient Http
+    
 
 <h2>Lobby Management</h2>
 
@@ -31,7 +34,12 @@
     {
         try
         {
-            var response = await Http.PostAsJsonAsync<object>("/api/lobby/create-lobby", null);
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/Lobby/create-lobby");
+
+            var response = await Http.SendAsync(request);
+
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<LobbyResponse>();
@@ -53,7 +61,7 @@
     {
         try
         {
-            var response = await Http.PostAsJsonAsync("/api/lobby/join-lobby", LobbyId);
+            var response = await Http.PostAsJsonAsync("https://localhost:7060/api/lobby/join-lobby", LobbyId);
             if (response.IsSuccessStatusCode)
             {
                 NavigationManager.NavigateTo($"/lobby/{LobbyId}");

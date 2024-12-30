@@ -1,3 +1,4 @@
+using Backend.Controllers;
 using Backend.Database;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -66,6 +67,9 @@ builder.Services.AddCors(options =>
                           .AllowAnyHeader());
 });
 
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<LobbyManager>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -93,6 +97,8 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapHub<LobbyHub>("/lobbyHub");
 
 app.MapControllers();
 

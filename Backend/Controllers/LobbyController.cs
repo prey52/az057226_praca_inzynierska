@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
 
-namespace YourNamespace.Controllers
+namespace Backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
@@ -19,18 +19,17 @@ namespace YourNamespace.Controllers
             _hubContext = hubContext;
         }
 
+        [AllowAnonymous]
         [HttpPost("create-lobby")]
-        [Authorize]
         public IActionResult CreateLobby()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get the user ID from token
+            var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var lobby = _lobbyManager.CreateLobby(userId);
 
             return Ok(new { lobby.LobbyId });
         }
 
         [HttpPost("update-lobby")]
-        [Authorize]
         public async Task<IActionResult> UpdateLobby([FromBody] LobbyUpdateDto dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -49,7 +48,6 @@ namespace YourNamespace.Controllers
         }
 
         [HttpPost("join-lobby")]
-        [Authorize]
         public async Task<IActionResult> JoinLobby([FromBody] string lobbyId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
