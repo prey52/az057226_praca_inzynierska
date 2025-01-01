@@ -1,5 +1,7 @@
-﻿@inherits LayoutComponentBase
+﻿@using AZ_Inz.Shared
+@inherits LayoutComponentBase
 @inject CustomAuthStateProvider AuthStateProvider
+@inject AuthenticationStateService AuthStateService
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -19,7 +21,7 @@
             </NavLink>
         </div>
 
-        @if (!IsAuthenticated)
+        @if (!AuthStateService.IsAuthenticated)
         {
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="login">
@@ -50,17 +52,15 @@
 
 @code {
     private bool collapseNavMenu = true;
-    private bool IsAuthenticated = false;
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
 
-    // This method toggles the collapse state of the navigation menu
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
     }
 
-    // This method checks authentication status during initialization
+
     protected override async Task OnInitializedAsync()
     {
         // Subscribe to authentication state changes
@@ -68,24 +68,29 @@
 
         // Get initial authentication state
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        IsAuthenticated = authState.User.Identity.IsAuthenticated;
+        var isAuthenticated = authState.User.Identity.IsAuthenticated;
 
-        // Call StateHasChanged to make sure the UI reflects the initial state
+        // Update the shared service
+        AuthStateService.UpdateAuthenticationState(isAuthenticated);
+
         StateHasChanged();
     }
 
-    // This method handles authentication state changes
+
     private void OnAuthenticationStateChanged()
     {
         InvokeAsync(async () =>
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            IsAuthenticated = authState.User.Identity.IsAuthenticated;
+            var isAuthenticated = authState.User.Identity.IsAuthenticated;
 
-            // Trigger re-render
+            // Update the shared service
+            AuthStateService.UpdateAuthenticationState(isAuthenticated);
+
             StateHasChanged();
         });
     }
+
 
     // This method handles logout logic
     private async Task Logout()
@@ -95,7 +100,7 @@
         AuthStateProvider.NotifyUserLogout();
 
         // Update the authentication status and trigger re-render
-        IsAuthenticated = false;
+        AuthStateService.UpdateAuthenticationState(false);
         StateHasChanged();
     }
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
 using Blazored.LocalStorage;
+using AZ_Inz.Shared;
 
 
 
@@ -19,6 +20,8 @@ builder.Services.AddBlazoredLocalStorage();
 
 // Add authentication services
 builder.Services.AddScoped<CustomAuthStateProvider>();
+builder.Services.AddScoped<AuthenticationStateService>();
+
 builder.Services.AddAuthorizationCore(); // Register authorization services
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<CustomAuthStateProvider>());
 

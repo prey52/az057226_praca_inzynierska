@@ -48,25 +48,33 @@ namespace Backend.Controllers
         }
 
         [HttpPost("join-lobby")]
-        public async Task<IActionResult> JoinLobby([FromBody] string lobbyId)
+        public async Task<IActionResult> JoinLobby([FromBody] JoinLobbyRequest request)
         {
             var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-            var lobby = _lobbyManager.GetLobby(lobbyId);
+            var lobby = _lobbyManager.GetLobby(request.LobbyId);
 
-            if (lobby == null) return NotFound("Lobby not found.");
-            if (lobby.PlayerIds.Contains(userId)) return BadRequest("User already in the lobby.");
+            if (lobby == null)
+                return NotFound("Lobby not found.");
 
-            lobby.PlayerIds.Add(userId);
+            // Use userId if logged in; otherwise, use the nickname
+            var participantId = userId ?? request.Nickname;
+
+            if (string.IsNullOrEmpty(participantId))
+                return BadRequest("You must provide a nickname if not logged in.");
+
+            if (lobby.PlayerIds.Contains(participantId))
+                return BadRequest("User or nickname already in the lobby.");
+
+            lobby.PlayerIds.Add(participantId);
 
             // Add user to SignalR group
-            await _hubContext.Groups.AddToGroupAsync(HttpContext.Connection.Id, lobbyId);
-            await _hubContext.Clients.Group(lobbyId).SendAsync("PlayerJoined", userId);
+            await _hubContext.Groups.AddToGroupAsync(HttpContext.Connection.Id, request.LobbyId);
+            await _hubContext.Clients.Group(request.LobbyId).SendAsync("PlayerJoined", participantId);
 
-            return Ok(lobby);
+            return Ok(new { LobbyId = request.LobbyId, ParticipantId = participantId });
         }
     }
 
-    // Lobby Model
     public class Lobby
     {
         public string LobbyId { get; set; } = Guid.NewGuid().ToString();
@@ -110,7 +118,6 @@ namespace Backend.Controllers
         }
     }
 
-    // Lobby DTO
     public class LobbyUpdateDto
     {
         public string LobbyId { get; set; }
@@ -118,7 +125,13 @@ namespace Backend.Controllers
         public int ScoreToWin { get; set; }
     }
 
-    // SignalR Hub for Lobby Events
+    public class JoinLobbyRequest
+    {
+        public string LobbyId { get; set; }
+        public string? Nickname { get; set; }
+    }
+
+
     public class LobbyHub : Hub
     {
         private readonly LobbyManager _lobbyManager;
@@ -145,5 +158,6 @@ namespace Backend.Controllers
 
             await Clients.Group(lobbyId).SendAsync("LobbyUpdated", lobby);
         }
+
     }
 }

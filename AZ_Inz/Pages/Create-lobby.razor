@@ -1,10 +1,13 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Net.Http.Headers;
+@using Pages;
+@using AZ_Inz.Shared
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject NavigationManager NavigationManager
 @inject HttpClient Http
-    
+@inject CustomAuthStateProvider AuthStateProvider
+@inject AuthenticationStateService AuthStateService
 
 <h2>Lobby Management</h2>
 
@@ -17,9 +20,15 @@
     <form @onsubmit="JoinLobby">
         <label for="lobbyId">Lobby ID:</label>
         <input type="text" id="lobbyId" @bind="LobbyId" required />
+        @if (!AuthStateService.IsAuthenticated)
+        {
+            <label for="nickname">Nickname (if not logged in):</label>
+            <input type="text" id="nickname" @bind="Nickname" />
+        }
         <button type="submit">Join Lobby</button>
     </form>
 </div>
+
 
 @if (ErrorMessage != null)
 {
@@ -27,6 +36,7 @@
 }
 
 @code {
+
     private string LobbyId;
     private string ErrorMessage;
 
@@ -57,18 +67,40 @@
     }
 
 
+    private string Nickname; // Add a field for the nickname
+
     private async Task JoinLobby()
     {
         try
         {
-            var response = await Http.PostAsJsonAsync("https://localhost:7060/api/lobby/join-lobby", LobbyId);
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            // Prepare the request body
+            var joinRequest = new
+            {
+                LobbyId,
+                Nickname = string.IsNullOrEmpty(token) ? Nickname : null // Use nickname if not logged in
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/lobby/join-lobby");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            request.Content = JsonContent.Create(joinRequest);
+
+            var response = await Http.SendAsync(request);
+
             if (response.IsSuccessStatusCode)
             {
                 NavigationManager.NavigateTo($"/lobby/{LobbyId}");
             }
             else
             {
-                ErrorMessage = "Failed to join lobby. Please check the Lobby ID.";
+                var errorDetails = await response.Content.ReadAsStringAsync();
+                ErrorMessage = $"Failed to join lobby. {errorDetails}";
             }
         }
         catch (Exception ex)
@@ -76,6 +108,7 @@
             ErrorMessage = $"Error: {ex.Message}";
         }
     }
+
 
     private class LobbyResponse
     {
