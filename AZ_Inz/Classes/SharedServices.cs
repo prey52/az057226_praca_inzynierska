@@ -1,4 +1,4 @@
-﻿namespace AZ_Inz.Shared
+﻿namespace AZ_Inz.Classes
 {
     public class AuthenticationStateService
     {
@@ -17,8 +17,5 @@
             AuthenticationStateChanged?.Invoke();
         }
 
-
     }
-
-
 }

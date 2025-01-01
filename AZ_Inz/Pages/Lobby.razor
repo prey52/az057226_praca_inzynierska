@@ -1,122 +1,119 @@
 ﻿@page "/lobby/{LobbyId}"
+@using AZ_Inz.Classes
 @using Microsoft.AspNetCore.SignalR.Client
-@inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+@inject CustomAuthStateProvider AuthStateProvider
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager Navigation
 
-<h2>Lobby: @LobbyId</h2>
 
-<div style="display: flex;">
-    <!-- Player List Section -->
-    <div style="width: 50%; border-right: 1px solid black; padding-right: 20px;">
-        <h3>Players</h3>
+<h2>Lobby ID: @LobbyId</h2>
+
+@if (IsHost)
+{
+    <h3>Host Controls</h3>
+    <div>
+        <label>Score to Win:</label>
+        <input type="number" @bind="ScoreToWin" min="1" />
+    </div>
+    <div>
+        <h4>Select Card Decks</h4>
         <ul>
-            @foreach (var player in Players)
+            @foreach (var deck in AvailableDecks)
             {
-                <li>@player</li>
+                <li>
+                    <input type="checkbox" @bind="deck.Selected" /> @deck.Name
+                </li>
             }
         </ul>
     </div>
-
-    <!-- Host Options Section -->
-    <div style="width: 50%; padding-left: 20px;">
-        @if (IsHost)
+    <button @onclick="StartGame">Start Game</button>
+}
+else
+{
+    <h3>Players in the Lobby</h3>
+    <ul>
+        @foreach (var player in Players)
         {
-            <h3>Lobby Settings</h3>
-            <form>
-                <div>
-                    <label for="scoreToWin">Score to Win:</label>
-                    <input type="number" id="scoreToWin" @bind="ScoreToWin" />
-                </div>
-
-                <div style="margin-top: 10px;">
-                    <label for="cardDecks">Choose Card Decks:</label>
-                    <select id="cardDecks" multiple @bind="SelectedDecks">
-                        @foreach (var deck in AvailableDecks)
-                        {
-                            <option value="@deck">@deck</option>
-                        }
-                    </select>
-                </div>
-
-                <button type="button" style="margin-top: 10px;" @onclick="StartGame">Start Game</button>
-            </form>
+            <li>@player.Nickname</li>
         }
-        else
-        {
-            <p>Waiting for the host to start the game...</p>
-        }
-    </div>
-</div>
+    </ul>
+    <p>Waiting for the host to start the game...</p>
+}
 
 @code {
+    [Parameter] public string LobbyId { get; set; }
 
-    [Parameter]
-    public string LobbyId { get; set; }
-
-    private List<string> Players = new();
-    private bool IsHost = false;
+    private List<Player> Players = new();
+    private List<CardDeck> AvailableDecks = new();
+    private bool IsHost;
     private int ScoreToWin;
-    private List<string> SelectedDecks = new();
-    private List<string> AvailableDecks = new() { "Deck 1", "Deck 2", "Deck 3" };
-
-    private HubConnection _hubConnection;
+    private HubConnection? HubConnection;
 
     protected override async Task OnInitializedAsync()
     {
-        // Retrieve the token from localStorage using JavaScript Interop
-        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "token");
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.Identity.Name;
 
-        if (string.IsNullOrEmpty(token))
+        Console.WriteLine($"Current UserId: {userId}");
+
+        var lobby = await Http.GetFromJsonAsync<AZ_Inz.Classes.Lobby>($"https://localhost:7060/api/lobby/{LobbyId}");
+
+        if (lobby == null)
         {
-            Console.WriteLine("No token found in localStorage.");
+            Navigation.NavigateTo("/");
             return;
         }
 
-        // Set up SignalR connection
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(NavigationManager.ToAbsoluteUri("/lobbyHub"), options =>
-            {
-                options.AccessTokenProvider = () => Task.FromResult(token);
-            })
-            .WithAutomaticReconnect()
+        Console.WriteLine($"Lobby HostId: {lobby.HostId}");
+
+        // Determine if the current user is the host
+        IsHost = lobby.HostId == userId;
+        StateHasChanged();
+
+        Console.WriteLine($"IsHost: {IsHost}");
+
+        // Load lobby data
+        Players = lobby.Players;
+
+        // Load available card decks (mocked for now)
+        AvailableDecks = new List<CardDeck>
+    {
+        new CardDeck { Name = "Deck 1", Selected = false },
+        new CardDeck { Name = "Deck 2", Selected = false },
+        new CardDeck { Name = "Deck 3", Selected = false }
+    };
+
+        // Connect to SignalR hub
+        HubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/lobbyHub"))
             .Build();
 
-        // Set up SignalR event handlers
-        _hubConnection.On<List<string>>("UpdatePlayers", (updatedPlayers) =>
+        HubConnection.On<Player>("PlayerJoined", player =>
         {
-            Players = updatedPlayers;
+            Players.Add(player);
             StateHasChanged();
         });
 
-        _hubConnection.On<bool>("SetHost", (isHost) =>
-        {
-            IsHost = isHost;
-            StateHasChanged();
-        });
-
-        // Start connection and join lobby
-        await _hubConnection.StartAsync();
-        await _hubConnection.InvokeAsync("JoinLobby", LobbyId);
+        await HubConnection.StartAsync();
     }
+
 
     private async Task StartGame()
     {
-        try
-        {
-            await _hubConnection.InvokeAsync("StartGame", new { ScoreToWin, SelectedDecks });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error starting game: {ex.Message}");
-        }
-    }
+        var selectedDecks = AvailableDecks.Where(d => d.Selected).Select(d => d.Name).ToList();
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_hubConnection != null)
+        var response = await Http.PostAsJsonAsync("https://localhost:7060/api/lobby/update-lobby", new LobbyUpdateDto
+            {
+                LobbyId = LobbyId,
+                SelectedDecks = selectedDecks,
+                ScoreToWin = ScoreToWin
+            });
+
+        if (response.IsSuccessStatusCode)
         {
-            await _hubConnection.StopAsync();
-            await _hubConnection.DisposeAsync();
+            // Notify players the game has started
+            await HubConnection.SendAsync("GameStarted", LobbyId);
         }
     }
 }

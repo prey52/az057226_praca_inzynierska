@@ -1,17 +1,16 @@
-﻿
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 
-namespace Backend.Database
+namespace Backend.Classes.Database
 {
-	public class CardsDBContext : IdentityDbContext<DBUser>
-	{
-		public CardsDBContext(DbContextOptions<CardsDBContext> options)
-		: base(options)
-		{
-		}
+    public class CardsDBContext : IdentityDbContext<DBUser>
+    {
+        public CardsDBContext(DbContextOptions<CardsDBContext> options)
+        : base(options)
+        {
+        }
 
         // DbSets for your entities
         public DbSet<DBUser> User { get; set; }

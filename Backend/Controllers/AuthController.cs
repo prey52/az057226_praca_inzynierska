@@ -1,4 +1,4 @@
-﻿using Backend.Database;
+﻿using Backend.Classes.Database;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;

@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Net.Http.Headers;
 @using Pages;
-@using AZ_Inz.Shared
+@using AZ_Inz.Classes
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject NavigationManager NavigationManager
 @inject HttpClient Http
@@ -11,42 +11,83 @@
 
 <h2>Lobby Management</h2>
 
-<div>
-    <button @onclick="CreateLobby">Create Lobby</button>
-</div>
-
-<div style="margin-top: 20px;">
-    <h3>Join Lobby</h3>
-    <form @onsubmit="JoinLobby">
-        <label for="lobbyId">Lobby ID:</label>
-        <input type="text" id="lobbyId" @bind="LobbyId" required />
-        @if (!AuthStateService.IsAuthenticated)
-        {
-            <label for="nickname">Nickname (if not logged in):</label>
-            <input type="text" id="nickname" @bind="Nickname" />
-        }
-        <button type="submit">Join Lobby</button>
-    </form>
-</div>
-
-
-@if (ErrorMessage != null)
+@if (isLoading)
 {
-    <p style="color:red;">@ErrorMessage</p>
+    <p>Loading...</p> <!-- You can show a loading spinner or message -->
+}
+else
+{
+    @if (!AuthStateService.IsAuthenticated)
+    {
+        <label for="nickname">Nickname</label>
+        <input type="text" id="nickname" @bind="Nickname" />
+    }
+
+    <div>
+        <button @onclick="CreateLobby">Create Lobby</button>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <h3>Join Lobby</h3>
+        <form @onsubmit="JoinLobby">
+            <label for="lobbyId">Lobby ID:</label>
+            <input type="text" id="lobbyId" @bind="LobbyId" required />
+            <button type="submit">Join Lobby</button>
+        </form>
+    </div>
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <p style="color:red;">@ErrorMessage</p>
+    }
 }
 
 @code {
-
     private string LobbyId;
     private string ErrorMessage;
+    private string Nickname;
+    private bool isLoading = true; // This flag will be used to determine if we're still checking authentication
+
+    // This method runs when the component is first rendered and ensures we know the authentication state
+    protected override async Task OnInitializedAsync()
+    {
+        // Wait for authentication state to be ready
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        // Now we can safely check the authentication state
+        if (authState.User.Identity.IsAuthenticated)
+        {
+            // The user is authenticated, handle this case if necessary
+        }
+
+        isLoading = false; // Done loading, trigger re-render
+        StateHasChanged(); // Re-render the component
+    }
 
     private async Task CreateLobby()
     {
         try
         {
             var token = await LocalStorage.GetItemAsync<string>("authToken");
+            var createRequest = new
+            {
+                Nickname = string.IsNullOrEmpty(token) ? Nickname : null
+            };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/Lobby/create-lobby");
+            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(Nickname))
+            {
+                ErrorMessage = "Nickname is required for unauthenticated users.";
+                return;
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/lobby/create-lobby");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            request.Content = JsonContent.Create(createRequest);
 
             var response = await Http.SendAsync(request);
 
@@ -57,7 +98,8 @@
             }
             else
             {
-                ErrorMessage = "Failed to create lobby.";
+                var errorDetails = await response.Content.ReadAsStringAsync();
+                ErrorMessage = $"Failed to create lobby. {errorDetails}";
             }
         }
         catch (Exception ex)
@@ -66,21 +108,23 @@
         }
     }
 
-
-    private string Nickname; // Add a field for the nickname
-
     private async Task JoinLobby()
     {
         try
         {
             var token = await LocalStorage.GetItemAsync<string>("authToken");
 
-            // Prepare the request body
             var joinRequest = new
             {
                 LobbyId,
-                Nickname = string.IsNullOrEmpty(token) ? Nickname : null // Use nickname if not logged in
+                Nickname = string.IsNullOrEmpty(token) ? Nickname : null
             };
+
+            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(Nickname))
+            {
+                ErrorMessage = "Nickname is required for unauthenticated users.";
+                return;
+            }
 
             var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/lobby/join-lobby");
 
@@ -108,7 +152,6 @@
             ErrorMessage = $"Error: {ex.Message}";
         }
     }
-
 
     private class LobbyResponse
     {

@@ -1,4 +1,4 @@
-﻿namespace Backend.Database
+﻿namespace Backend.Classes.Database
 {
     public class AnswerDeck
     {

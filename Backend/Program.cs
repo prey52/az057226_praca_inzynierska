@@ -1,5 +1,5 @@
-using Backend.Controllers;
-using Backend.Database;
+using Backend.Classes.Database;
+using Backend.Classes;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
