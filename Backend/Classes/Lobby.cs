@@ -74,12 +74,58 @@ namespace Backend.Classes
             await Clients.Group(lobbyId).SendAsync("PlayerJoined", new { UserId = userId });
         }
 
-        public async Task UpdateLobby(string lobbyId)
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            // Find the lobby this user was in
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userId)) return;
+
+            foreach (var lobby in _lobbyManager.GetAllLobbies())
+            {
+                if (lobby.PlayerIds.Contains(userId))
+                {
+                    // Remove player from lobby
+                    var player = lobby.Players.FirstOrDefault(p => p.PlayerId == userId);
+                    if (player != null) lobby.Players.Remove(player);
+
+                    // Notify other clients in the lobby
+                    await Clients.Group(lobby.LobbyId).SendAsync("PlayerLeft", player);
+
+                    // Remove the lobby if it's now empty
+                    if (!lobby.Players.Any())
+                    {
+                        _lobbyManager.RemoveLobby(lobby.LobbyId);
+                        await Clients.Group(lobby.LobbyId).SendAsync("LobbyClosed");
+                    }
+                    break;
+                }
+            }
+
+            await base.OnDisconnectedAsync(exception);
+        }
+
+        public async Task LeaveLobby(string lobbyId)
         {
             var lobby = _lobbyManager.GetLobby(lobbyId);
-            if (lobby == null) throw new HubException("Lobby not found.");
+            if (lobby == null) return;
 
-            await Clients.Group(lobbyId).SendAsync("LobbyUpdated", lobby);
+            var userId = Context.UserIdentifier;
+            if (string.IsNullOrEmpty(userId)) return;
+
+            var player = lobby.Players.FirstOrDefault(p => p.PlayerId == userId);
+            if (player != null)
+            {
+                lobby.Players.Remove(player);
+                await Clients.Group(lobbyId).SendAsync("PlayerLeft", player);
+
+                // Remove the lobby if it's now empty
+                if (!lobby.Players.Any())
+                {
+                    _lobbyManager.RemoveLobby(lobbyId);
+                    await Clients.Group(lobbyId).SendAsync("LobbyClosed");
+                }
+            }
         }
+
     }
 }

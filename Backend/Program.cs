@@ -91,14 +91,12 @@ app.Use(async (context, next) =>
     await next.Invoke();
 });
 
-
-
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHub<LobbyHub>("/lobbyHub");
+app.MapHub<LobbyHub>("/lobbyhub");
 
 app.MapControllers();
 
