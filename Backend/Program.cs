@@ -57,6 +57,10 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+//debug
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 
 //CORS
 builder.Services.AddCors(options =>
@@ -64,7 +68,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         builder => builder.WithOrigins("https://localhost:7072")
                           .AllowAnyMethod()
-                          .AllowAnyHeader());
+                          .AllowAnyHeader()
+                          .AllowCredentials());
 });
 
 builder.Services.AddSignalR();

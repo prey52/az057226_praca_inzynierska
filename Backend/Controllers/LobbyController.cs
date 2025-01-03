@@ -60,6 +60,7 @@ namespace Backend.Controllers
 
         }
 
+        [AllowAnonymous]
         [HttpPost("join-lobby")]
         public async Task<IActionResult> JoinLobby([FromBody] JoinLobbyRequest request)
         {
@@ -79,5 +80,19 @@ namespace Backend.Controllers
 
             return Ok(lobby);
         }
+
+        [AllowAnonymous]
+        [HttpGet("{lobbyId}")]
+        public ActionResult<Lobby> GetLobby(string lobbyId)
+        {
+            var lobby = _lobbyManager.GetLobby(lobbyId);
+            if (lobby == null)
+            {
+                return NotFound("Lobby not found.");
+            }
+
+            return Ok(lobby);
+        }
+
     }
 }

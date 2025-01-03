@@ -64,9 +64,10 @@ else
         try
         {
             HubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("https://localhost:7060/lobbyhub")) // Backend URL
+            .WithUrl("https://localhost:7060/lobbyhub")
             .WithAutomaticReconnect()
             .Build();
+
 
             HubConnection.On<Player>("PlayerJoined", player =>
             {
@@ -92,7 +93,7 @@ else
             await HubConnection.SendAsync("JoinLobby", LobbyId);
 
             // Fetch lobby details
-            var response = await Http.GetAsync($"/api/lobby/{LobbyId}");
+            var response = await Http.GetAsync($"https://localhost:7060/api/Lobby/{LobbyId}");
             if (response.IsSuccessStatusCode)
             {
                 var lobby = await response.Content.ReadFromJsonAsync<Lobby>();
@@ -109,7 +110,11 @@ else
             }
             else
             {
-                ErrorMessage = "Failed to load lobby details.";
+                var status = response.StatusCode; // e.g. 401, 404, etc.
+                var reason = response.ReasonPhrase;
+                var body = await response.Content.ReadAsStringAsync(); // may contain an error message
+
+                ErrorMessage = $"HTTP {status}: {reason}, Body: {body}";
             }
         }
         catch (Exception ex)
