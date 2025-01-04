@@ -102,7 +102,7 @@ else
 
             // 3. Subscribe to hub events
             hubConnection.On<LobbyCreatedResponse>("LobbyCreated", OnLobbyCreated);
-            hubConnection.On<object>("JoinedLobby", OnJoinedLobby);
+            hubConnection.On<JoinedLobbyResponse>("JoinedLobby", OnJoinedLobby);
             hubConnection.On<object>("PlayerJoined", OnPlayerJoined);
 
             hubConnection.On<Exception>("OnError", e =>
@@ -168,6 +168,7 @@ else
     {
         ErrorMessage = string.Empty;
 
+        // If user is anonymous, require a nickname
         if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
         {
             ErrorMessage = "Nickname is required for unauthenticated users to join a lobby.";
@@ -179,7 +180,16 @@ else
             return;
         }
 
+        // Decide a name to display
         var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
+
+        // Decide the user ID
+        // For an authenticated user, you might do:
+        //    var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        // Or use a property you already set. For a guest, you read from cookie or local storage.
+        // For demonstration, let's assume you already have a 'userId' field set in OnInitializedAsync.
+
+        Console.WriteLine($"Joining lobby with userId = {userId}");
 
         try
         {
@@ -189,8 +199,8 @@ else
                 return;
             }
 
-            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}) to hub...");
-            await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse);
+            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}, {userId}) to hub...");
+            await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse, userId);
         }
         catch (Exception ex)
         {
@@ -198,6 +208,7 @@ else
             Console.WriteLine(ErrorMessage);
         }
     }
+
 
     private void OnLobbyCreated(LobbyCreatedResponse data)
     {
@@ -213,24 +224,20 @@ else
         }
     }
 
-    private void OnJoinedLobby(object lobbyData)
+    private void OnJoinedLobby(JoinedLobbyResponse data)
     {
-        Console.WriteLine("OnJoinedLobby triggered with data: " + lobbyData);
+        Console.WriteLine($"OnJoinedLobby triggered with LobbyId = {data.LobbyId}, Players count = {data.Players.Count}, HostId = {data.HostId}");
 
-        var dict = lobbyData as Dictionary<string, object>;
-        if (dict != null && dict.ContainsKey("LobbyId"))
+        if (!string.IsNullOrEmpty(data.LobbyId))
         {
-            var joinedLobbyId = dict["LobbyId"]?.ToString();
-            if (!string.IsNullOrEmpty(joinedLobbyId))
-            {
-                NavigationManager.NavigateTo($"/lobby/" + joinedLobbyId);
-            }
+            NavigationManager.NavigateTo($"/lobby/{data.LobbyId}");
         }
         else
         {
             ErrorMessage = "Failed to parse JoinedLobby data.";
         }
     }
+
 
     private void OnPlayerJoined(object playerData)
     {

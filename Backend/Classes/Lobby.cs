@@ -91,10 +91,11 @@ namespace Backend.Classes
             
         }
 
-
         // Join an existing lobby with a nickname
         public async Task JoinLobby(string lobbyId, string nickname, string userId)
         {
+            Console.WriteLine("JoinLobby invoked with userId = " + userId);
+
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
@@ -103,6 +104,7 @@ namespace Backend.Classes
             if (lobby.PlayerIds.Contains(userId))
                 throw new HubException("User already in the lobby.");
 
+            // Add user to SignalR group for real-time updates
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
 
             var player = new Player
@@ -113,6 +115,7 @@ namespace Backend.Classes
 
             lobby.Players.Add(player);
 
+            // Return the updated lobby to the caller
             await Clients.Caller.SendAsync("JoinedLobby", new
             {
                 LobbyId = lobby.LobbyId,
@@ -120,8 +123,10 @@ namespace Backend.Classes
                 HostId = lobby.HostId
             });
 
+            // Notify others in the lobby about the new player
             await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
         }
+    
 
 
         public async Task<Lobby> GetLobbyDetails(string lobbyId)
@@ -139,22 +144,12 @@ namespace Backend.Classes
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null) return;
 
-            // For truly anonymous users, we’d need a way to track user ID 
-            // (like storing it in a static map from ConnectionId => userId).
-            // Or we can do a quick search for the user by ConnectionId in 
-            // some dictionary. For now, let's assume we skip this or handle differently.
-
-            // We'll just remove from the group for demonstration
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, lobbyId);
             await Clients.Group(lobbyId).SendAsync("PlayerLeft", $"Connection {Context.ConnectionId} left.");
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            // Similar logic: find any player with this ConnectionId or userId 
-            // and remove them from their lobby. 
-            // For brevity, we'll skip that. 
-
             await base.OnDisconnectedAsync(exception);
         }
     }
