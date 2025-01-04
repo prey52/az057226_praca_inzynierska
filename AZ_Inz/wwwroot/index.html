@@ -21,6 +21,25 @@
         <div class="loading-progress-text"></div>
     </div>
 
+    <!--Cookie manager-->
+    <script>
+        window.cookieManager = {
+            getCookie: function (name) {
+                const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+                return match ? match[2] : "";
+            },
+            setCookie: function (name, value, days) {
+                let expires = "";
+                if (days) {
+                    const d = new Date();
+                    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+                    expires = "; expires=" + d.toUTCString();
+                }
+                document.cookie = name + "=" + (value || "") + expires + "; path=/";
+            }
+        };
+    </script>
+
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>

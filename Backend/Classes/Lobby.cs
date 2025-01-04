@@ -67,8 +67,6 @@ namespace Backend.Classes
         // Create a new lobby with the given nickname (for anonymous or “guest” user)
         public async Task CreateLobby(string nickname)
         {
-            Console.WriteLine("just testing");
-
             try
             {
                 var userId = Guid.NewGuid().ToString();
@@ -95,17 +93,16 @@ namespace Backend.Classes
 
 
         // Join an existing lobby with a nickname
-        public async Task JoinLobby(string lobbyId, string nickname)
+        public async Task JoinLobby(string lobbyId, string nickname, string userId)
         {
             var lobby = _lobbyManager.GetLobby(lobbyId);
-            if (lobby == null) throw new HubException("Lobby not found.");
+            if (lobby == null)
+                throw new HubException("Lobby not found.");
 
-            var userId = Guid.NewGuid().ToString();
-
+            // If they've already joined, skip
             if (lobby.PlayerIds.Contains(userId))
                 throw new HubException("User already in the lobby.");
 
-            // Join group
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
 
             var player = new Player
@@ -113,9 +110,9 @@ namespace Backend.Classes
                 PlayerId = userId,
                 Nickname = nickname
             };
+
             lobby.Players.Add(player);
 
-            // Return to the caller
             await Clients.Caller.SendAsync("JoinedLobby", new
             {
                 LobbyId = lobby.LobbyId,
@@ -123,8 +120,17 @@ namespace Backend.Classes
                 HostId = lobby.HostId
             });
 
-            // Notify others
             await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
+        }
+
+
+        public async Task<Lobby> GetLobbyDetails(string lobbyId)
+        {
+            var lobby = _lobbyManager.GetLobby(lobbyId);
+            if (lobby == null)
+                throw new HubException("Lobby not found.");
+
+            return lobby;
         }
 
 
@@ -151,12 +157,5 @@ namespace Backend.Classes
 
             await base.OnDisconnectedAsync(exception);
         }
-
-        public async Task Ping()
-        {
-            Console.WriteLine("Ping method invoked!");
-            await Clients.Caller.SendAsync("Pong");
-        }
-
     }
 }

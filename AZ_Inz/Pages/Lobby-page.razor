@@ -1,121 +1,103 @@
 ﻿@page "/lobby/{LobbyId}"
-@using AZ_Inz.Classes
 @using Microsoft.AspNetCore.SignalR.Client
-@inject HttpClient Http
-@inject CustomAuthStateProvider AuthStateProvider
-@inject AuthenticationStateService AuthStateService
+@using AZ_Inz.Classes
 @inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
 
 <h2>Lobby ID: @LobbyId</h2>
 
-@if (ErrorMessage != null)
+@if (!string.IsNullOrEmpty(ErrorMessage))
 {
-    <p class="error" style="color:red">@ErrorMessage</p>
+        <p style="color:red">@ErrorMessage</p>
 }
 
-@if (HubConnection is not null && HubConnection.State == HubConnectionState.Connected)
+@if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
 {
-    <h3>Players in Lobby</h3>
-    <ul>
-        @foreach (var player in Players)
-        {
-            <li>@player.Nickname (@player.PlayerId)</li>
-        }
-    </ul>
-
-    @if (IsHost)
-    {
-        <h3>Lobby Settings</h3>
-        <label>Score to Win:</label>
-        <input type="number" @bind="ScoreToWin" />
-
-        <h3>Available Decks</h3>
-        <ul>
-            @foreach (var deck in AvailableDecks)
-            {
-                <li>@deck.Name</li>
-            }
-        </ul>
-
-        <button @onclick="StartGame">Start Game</button>
-    }
-    else
-    {
-        <p>Waiting for the host to start the game...</p>
-    }
+        <p>Connecting to the lobby...</p>
 }
 else
 {
-    <p>Connecting to the lobby...</p>
+        <h3>Players in Lobby</h3>
+        <ul>
+        @foreach (var player in Players)
+        {
+                    <li>@player.Nickname (@player.PlayerId)</li>
+        }
+        </ul>
+
+    @if (IsHost)
+    {
+                <h3>Lobby Settings</h3>
+                <label>Score to Win:</label>
+                <input type="number" @bind="ScoreToWin" />
+
+                <button @onclick="StartGame">Start Game</button>
+    }
+    else
+    {
+                <p>Waiting for the host to start the game...</p>
+    }
 }
 
 @code {
     [Parameter] public string LobbyId { get; set; }
 
+    private HubConnection hubConnection;
     private List<Player> Players = new();
-    private List<CardDeck> AvailableDecks = new();
     private bool IsHost;
     private int ScoreToWin;
     private string ErrorMessage;
-    private HubConnection? HubConnection;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            HubConnection = new HubConnectionBuilder()
-            .WithUrl("https://localhost:7060/lobbyhub")
-            .WithAutomaticReconnect()
-            .Build();
+            // 1. Build SignalR connection
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl("https://localhost:7060/lobbyhub")
+                .WithAutomaticReconnect()
+                .Build();
 
-
-            HubConnection.On<Player>("PlayerJoined", player =>
+            // 2. Subscribe to real-time events
+            hubConnection.On<Player>("PlayerJoined", player =>
             {
                 Players.Add(player);
                 StateHasChanged();
             });
 
-            HubConnection.On<Player>("PlayerLeft", player =>
+            hubConnection.On<Player>("PlayerLeft", player =>
             {
                 Players.RemoveAll(p => p.PlayerId == player.PlayerId);
                 StateHasChanged();
             });
 
-            HubConnection.On("LobbyClosed", async () =>
+            hubConnection.On("LobbyClosed", async () =>
             {
                 ErrorMessage = "The lobby has been closed.";
-                await HubConnection.StopAsync();
+                await hubConnection.StopAsync();
                 StateHasChanged();
             });
 
-            // Start SignalR connection
-            await HubConnection.StartAsync();
-            await HubConnection.SendAsync("JoinLobby", LobbyId);
+            // 3. Start the connection
+            await hubConnection.StartAsync();
 
-            // Fetch lobby details
-            var response = await Http.GetAsync($"https://localhost:7060/api/Lobby/{LobbyId}");
-            if (response.IsSuccessStatusCode)
+            // 4. Call a new hub method "GetLobbyDetails"
+            var lobby = await hubConnection.InvokeAsync<Lobby>("GetLobbyDetails", LobbyId);
+            if (lobby == null)
             {
-                var lobby = await response.Content.ReadFromJsonAsync<Lobby>();
-                if (lobby != null)
-                {
-                    Players = lobby.Players;
-                    ScoreToWin = lobby.ScoreToWin;
-                    AvailableDecks = lobby.SelectedDecks;
-
-                    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-                    var userId = authState.User?.FindFirst(c => c.Type == "sub")?.Value;
-                    IsHost = userId == lobby.HostId;
-                }
+                ErrorMessage = "Lobby not found or error retrieving details.";
+                return;
             }
-            else
-            {
-                var status = response.StatusCode; // e.g. 401, 404, etc.
-                var reason = response.ReasonPhrase;
-                var body = await response.Content.ReadAsStringAsync(); // may contain an error message
 
-                ErrorMessage = $"HTTP {status}: {reason}, Body: {body}";
-            }
+            // Populate UI data
+            Players = lobby.Players;
+            ScoreToWin = lobby.ScoreToWin;
+
+            // Determine if user is host
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User?.FindFirst(c => c.Type == "sub")?.Value;
+            // or if you're storing user ID in a cookie for a guest, retrieve that instead.
+            IsHost = (userId == lobby.HostId);
         }
         catch (Exception ex)
         {
@@ -129,15 +111,11 @@ else
         {
             if (!IsHost) return;
 
-            var response = await Http.PostAsync($"/api/lobby/start-game/{LobbyId}", null);
-            if (response.IsSuccessStatusCode)
-            {
-                Navigation.NavigateTo($"/game/{LobbyId}");
-            }
-            else
-            {
-                ErrorMessage = "Failed to start the game.";
-            }
+            // Example: call "StartGame" hub method
+            await hubConnection.SendAsync("StartGame", LobbyId);
+
+            // Possibly navigate to /game/... 
+            Navigation.NavigateTo($"/game/{LobbyId}");
         }
         catch (Exception ex)
         {
@@ -147,9 +125,9 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        if (HubConnection != null)
+        if (hubConnection != null)
         {
-            await HubConnection.DisposeAsync();
+            await hubConnection.DisposeAsync();
         }
     }
 }

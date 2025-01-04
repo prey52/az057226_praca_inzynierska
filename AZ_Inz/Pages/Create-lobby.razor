@@ -1,9 +1,11 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Security.Claims
+@using AZ_Inz.Classes
 @inject CustomAuthStateProvider AuthStateProvider
 @inject CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 <h2>Lobby Management (Hub-Only)</h2>
 
@@ -34,9 +36,8 @@ else
         <button @onclick="JoinLobby">Join Lobby</button>
     </div>
 
-    <div>
-        <button @onclick="Ping">Ping</button>
-    </div>
+    <button @onclick="TestNavigate">Test Navigate</button>
+
 
     @if (!string.IsNullOrEmpty(ErrorMessage))
     {
@@ -45,10 +46,20 @@ else
 }
 
 @code {
+
+    private void TestNavigate()
+    {
+        Console.WriteLine("TestNavigate clicked.");
+        NavigationManager.NavigateTo("/login");
+        // or "/lobby/abcd"
+    }
+
     // Fields
     private HubConnection? hubConnection;
     private bool isLoading = true;
     private bool _isAuthenticated;
+
+    private string userId;
 
     private string Nickname;              // for anonymous users
     private string LobbyId;
@@ -57,6 +68,19 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // 1. Attempt to read from cookie
+        userId = await JS.InvokeAsync<string>("cookieManager.getCookie", "guestId");
+        if (string.IsNullOrEmpty(userId))
+        {
+            // 2. Generate new ID and store it
+            userId = Guid.NewGuid().ToString();
+
+            // For a 30-day cookie
+            await JS.InvokeVoidAsync("cookieManager.setCookie", "guestId", userId, 30);
+        }
+
+        Console.WriteLine($"Current user ID: {userId}");
+
         try
         {
             // 1. Determine if user is authenticated
@@ -72,12 +96,12 @@ else
 
             // 2. Build and start the SignalR hub connection
             hubConnection = new HubConnectionBuilder()
-                .WithUrl("https://localhost:7060/lobbyhub")    // Adjust if needed
+                .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
             // 3. Subscribe to hub events
-            hubConnection.On<object>("LobbyCreated", OnLobbyCreated);
+            hubConnection.On<LobbyCreatedResponse>("LobbyCreated", OnLobbyCreated);
             hubConnection.On<object>("JoinedLobby", OnJoinedLobby);
             hubConnection.On<object>("PlayerJoined", OnPlayerJoined);
 
@@ -110,24 +134,16 @@ else
         StateHasChanged();
     }
 
-    private async void Ping()
-    {
-        Console.WriteLine("Sending ping");
-        await hubConnection.SendAsync("Ping");
-    }
-
     private async void CreateLobby()
     {
         ErrorMessage = string.Empty;
 
-        // If user is anonymous, require a nickname
         if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
         {
             ErrorMessage = "Nickname is required for unauthenticated users to create a lobby.";
             return;
         }
 
-        // Choose which name to pass to the hub
         var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
 
         try
@@ -152,7 +168,6 @@ else
     {
         ErrorMessage = string.Empty;
 
-        // If user is anonymous, require a nickname
         if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
         {
             ErrorMessage = "Nickname is required for unauthenticated users to join a lobby.";
@@ -184,21 +199,13 @@ else
         }
     }
 
-    // Called when the hub calls: Clients.Caller.SendAsync("LobbyCreated", ...)
-    private void OnLobbyCreated(object lobbyData)
+    private void OnLobbyCreated(LobbyCreatedResponse data)
     {
-        Console.WriteLine("OnLobbyCreated triggered with data: " + lobbyData);
+        Console.WriteLine("OnLobbyCreated triggered with data: " + data.LobbyId);
 
-        // Typically it's an anonymous object. We can parse it with dynamic or Dictionary
-        var dict = lobbyData as Dictionary<string, object>;
-        if (dict != null && dict.ContainsKey("LobbyId"))
+        if (!string.IsNullOrEmpty(data.LobbyId))
         {
-            var newLobbyId = dict["LobbyId"]?.ToString();
-            if (!string.IsNullOrEmpty(newLobbyId))
-            {
-                // Navigate to the /lobby/:id page
-                NavigationManager.NavigateTo($"/lobby/{newLobbyId}");
-            }
+            NavigationManager.NavigateTo($"/lobby/{data.LobbyId}");
         }
         else
         {
@@ -206,7 +213,6 @@ else
         }
     }
 
-    // Called when the hub calls: Clients.Caller.SendAsync("JoinedLobby", ...)
     private void OnJoinedLobby(object lobbyData)
     {
         Console.WriteLine("OnJoinedLobby triggered with data: " + lobbyData);
@@ -226,7 +232,6 @@ else
         }
     }
 
-    // Called when the hub calls: Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player)
     private void OnPlayerJoined(object playerData)
     {
         Console.WriteLine("OnPlayerJoined triggered with data: " + playerData);
