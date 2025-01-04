@@ -1,26 +1,26 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
-@using System.Net.Http.Headers;
-@using Pages;
-@using AZ_Inz.Classes
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@inject NavigationManager NavigationManager
-@inject HttpClient Http
+@using System.Security.Claims
 @inject CustomAuthStateProvider AuthStateProvider
-@inject AuthenticationStateService AuthStateService
+@inject CustomAuthStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 
-<h2>Lobby Management</h2>
+<h2>Lobby Management (Hub-Only)</h2>
 
 @if (isLoading)
 {
-    <p>Loading...</p> <!-- You can show a loading spinner or message -->
+    <p>Loading...</p>
 }
 else
 {
-    @if (!AuthStateService.IsAuthenticated)
+    @if (!_isAuthenticated)
     {
         <label for="nickname">Nickname</label>
         <input type="text" id="nickname" @bind="Nickname" />
+    }
+    else
+    {
+        <p>You are logged in as: @_loggedUserDisplayName</p>
     }
 
     <div>
@@ -29,11 +29,13 @@ else
 
     <div style="margin-top: 20px;">
         <h3>Join Lobby</h3>
-        <form @onsubmit="JoinLobby">
-            <label for="lobbyId">Lobby ID:</label>
-            <input type="text" id="lobbyId" @bind="LobbyId" required />
-            <button type="submit">Join Lobby</button>
-        </form>
+        <label for="lobbyId">Lobby ID:</label>
+        <input type="text" id="lobbyId" @bind="LobbyId" required />
+        <button @onclick="JoinLobby">Join Lobby</button>
+    </div>
+
+    <div>
+        <button @onclick="Ping">Ping</button>
     </div>
 
     @if (!string.IsNullOrEmpty(ErrorMessage))
@@ -43,118 +45,200 @@ else
 }
 
 @code {
+    // Fields
+    private HubConnection? hubConnection;
+    private bool isLoading = true;
+    private bool _isAuthenticated;
+
+    private string Nickname;              // for anonymous users
     private string LobbyId;
     private string ErrorMessage;
-    private string Nickname;
-    private bool isLoading = true; // This flag will be used to determine if we're still checking authentication
+    private string _loggedUserDisplayName; // for logged-in users
 
-    // This method runs when the component is first rendered and ensures we know the authentication state
     protected override async Task OnInitializedAsync()
     {
-        // Wait for authentication state to be ready
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-
-        // Now we can safely check the authentication state
-        if (authState.User.Identity.IsAuthenticated)
-        {
-            // The user is authenticated, handle this case if necessary
-        }
-
-        isLoading = false; // Done loading, trigger re-render
-        StateHasChanged(); // Re-render the component
-    }
-
-    private async Task CreateLobby()
-    {
         try
         {
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-            var createRequest = new
+            // 1. Determine if user is authenticated
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+            // If logged in, get the display name or fallback
+            if (_isAuthenticated)
             {
-                Nickname = string.IsNullOrEmpty(token) ? Nickname : null
+                _loggedUserDisplayName = authState.User.FindFirst(ClaimTypes.Name)?.Value
+                                         ?? "Authenticated User";
+            }
+
+            // 2. Build and start the SignalR hub connection
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl("https://localhost:7060/lobbyhub")    // Adjust if needed
+                .WithAutomaticReconnect()
+                .Build();
+
+            // 3. Subscribe to hub events
+            hubConnection.On<object>("LobbyCreated", OnLobbyCreated);
+            hubConnection.On<object>("JoinedLobby", OnJoinedLobby);
+            hubConnection.On<object>("PlayerJoined", OnPlayerJoined);
+
+            hubConnection.On<Exception>("OnError", e =>
+            {
+                Console.WriteLine("Hub error: " + e.Message);
+            });
+
+            // Also consider hooking into built-in events:
+            hubConnection.Closed += async (ex) =>
+            {
+                Console.WriteLine("Connection closed with error: " + ex?.Message);
+            };
+            hubConnection.Reconnecting += (ex) =>
+            {
+                Console.WriteLine("Reconnecting because: " + ex?.Message);
+                return Task.CompletedTask;
             };
 
-            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(Nickname))
-            {
-                ErrorMessage = "Nickname is required for unauthenticated users.";
-                return;
-            }
-
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/lobby/create-lobby");
-
-            if (!string.IsNullOrEmpty(token))
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            }
-
-            request.Content = JsonContent.Create(createRequest);
-
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<LobbyResponse>();
-                NavigationManager.NavigateTo($"/lobby/{result.LobbyId}");
-            }
-            else
-            {
-                var errorDetails = await response.Content.ReadAsStringAsync();
-                ErrorMessage = $"Failed to create lobby. {errorDetails}";
-            }
+            await hubConnection.StartAsync();
+            Console.WriteLine("Hub connection started. State: " + hubConnection.State);
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Error: {ex.Message}";
+            ErrorMessage = $"Could not connect to hub: {ex.Message}";
+            Console.WriteLine(ErrorMessage);
         }
+
+        isLoading = false;
+        StateHasChanged();
     }
 
-    private async Task JoinLobby()
+    private async void Ping()
     {
+        Console.WriteLine("Sending ping");
+        await hubConnection.SendAsync("Ping");
+    }
+
+    private async void CreateLobby()
+    {
+        ErrorMessage = string.Empty;
+
+        // If user is anonymous, require a nickname
+        if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
+        {
+            ErrorMessage = "Nickname is required for unauthenticated users to create a lobby.";
+            return;
+        }
+
+        // Choose which name to pass to the hub
+        var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
+
         try
         {
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-            var joinRequest = new
+            if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
             {
-                LobbyId,
-                Nickname = string.IsNullOrEmpty(token) ? Nickname : null
-            };
-
-            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(Nickname))
-            {
-                ErrorMessage = "Nickname is required for unauthenticated users.";
+                ErrorMessage = "Not connected to the hub.";
                 return;
             }
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7060/api/lobby/join-lobby");
-
-            if (!string.IsNullOrEmpty(token))
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            }
-
-            request.Content = JsonContent.Create(joinRequest);
-
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                NavigationManager.NavigateTo($"/lobby/{LobbyId}");
-            }
-            else
-            {
-                var errorDetails = await response.Content.ReadAsStringAsync();
-                ErrorMessage = $"Failed to join lobby. {errorDetails}";
-            }
+            Console.WriteLine($"Sending CreateLobby({nameToUse}) to hub...");
+            await hubConnection.SendAsync("CreateLobby", nameToUse);
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Error: {ex.Message}";
+            ErrorMessage = $"Error creating lobby: {ex.Message}";
+            Console.WriteLine(ErrorMessage);
         }
     }
 
-    private class LobbyResponse
+    private async void JoinLobby()
     {
-        public string LobbyId { get; set; }
+        ErrorMessage = string.Empty;
+
+        // If user is anonymous, require a nickname
+        if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
+        {
+            ErrorMessage = "Nickname is required for unauthenticated users to join a lobby.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(LobbyId))
+        {
+            ErrorMessage = "Lobby ID cannot be empty.";
+            return;
+        }
+
+        var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
+
+        try
+        {
+            if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
+            {
+                ErrorMessage = "Not connected to the hub.";
+                return;
+            }
+
+            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}) to hub...");
+            await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error joining lobby: {ex.Message}";
+            Console.WriteLine(ErrorMessage);
+        }
+    }
+
+    // Called when the hub calls: Clients.Caller.SendAsync("LobbyCreated", ...)
+    private void OnLobbyCreated(object lobbyData)
+    {
+        Console.WriteLine("OnLobbyCreated triggered with data: " + lobbyData);
+
+        // Typically it's an anonymous object. We can parse it with dynamic or Dictionary
+        var dict = lobbyData as Dictionary<string, object>;
+        if (dict != null && dict.ContainsKey("LobbyId"))
+        {
+            var newLobbyId = dict["LobbyId"]?.ToString();
+            if (!string.IsNullOrEmpty(newLobbyId))
+            {
+                // Navigate to the /lobby/:id page
+                NavigationManager.NavigateTo($"/lobby/{newLobbyId}");
+            }
+        }
+        else
+        {
+            ErrorMessage = "Failed to parse LobbyCreated data.";
+        }
+    }
+
+    // Called when the hub calls: Clients.Caller.SendAsync("JoinedLobby", ...)
+    private void OnJoinedLobby(object lobbyData)
+    {
+        Console.WriteLine("OnJoinedLobby triggered with data: " + lobbyData);
+
+        var dict = lobbyData as Dictionary<string, object>;
+        if (dict != null && dict.ContainsKey("LobbyId"))
+        {
+            var joinedLobbyId = dict["LobbyId"]?.ToString();
+            if (!string.IsNullOrEmpty(joinedLobbyId))
+            {
+                NavigationManager.NavigateTo($"/lobby/" + joinedLobbyId);
+            }
+        }
+        else
+        {
+            ErrorMessage = "Failed to parse JoinedLobby data.";
+        }
+    }
+
+    // Called when the hub calls: Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player)
+    private void OnPlayerJoined(object playerData)
+    {
+        Console.WriteLine("OnPlayerJoined triggered with data: " + playerData);
+        // In the main page, we might do nothing. In the /lobby/:id page,
+        // we would refresh the player list, etc.
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
     }
 }

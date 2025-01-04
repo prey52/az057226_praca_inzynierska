@@ -14,35 +14,35 @@ builder.Services.AddSwaggerGen();
 
 //DBcontext
 builder.Services.AddDbContext<CardsDBContext>(options =>
-	options.UseSqlServer(
-		builder.Configuration.GetConnectionString("Cards")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("Cards")));
 
 //Identity
 builder.Services.AddIdentity<DBUser, IdentityRole>()
-	.AddEntityFrameworkStores<CardsDBContext>()
-	.AddDefaultTokenProviders();
+    .AddEntityFrameworkStores<CardsDBContext>()
+    .AddDefaultTokenProviders();
 
 //JWT (JSON Web Tokens)
 builder.Services.AddAuthentication(options =>
 {
-	options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-	options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
-	options.TokenValidationParameters = new TokenValidationParameters
-	{
-		ValidateIssuer = true,
-		ValidateAudience = true,
-		ValidateLifetime = true,
-		ValidateIssuerSigningKey = true,
-		ValidIssuer = builder.Configuration["Jwt:Issuer"], //weird, but it works
-		ValidAudience = builder.Configuration["Jwt:Issuer"], //read about it later
-		IssuerSigningKey = new SymmetricSecurityKey(
-			System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
-	};
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"], //weird, but it works
+        ValidAudience = builder.Configuration["Jwt:Issuer"], //read about it later
+        IssuerSigningKey = new SymmetricSecurityKey(
+            System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
 
-	//debug
+    //debug
     options.Events = new JwtBearerEvents
     {
         OnAuthenticationFailed = context =>
@@ -59,7 +59,7 @@ builder.Services.AddAuthentication(options =>
 });
 //debug
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+builder.Logging.AddConsole().SetMinimumLevel(LogLevel.Debug);
 
 
 //CORS
@@ -80,9 +80,11 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-	app.UseSwagger();
-	app.UseSwaggerUI();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
+
+//app.UseRouting(); // <--- add this
 
 //enable CORS
 app.UseCors("AllowFrontend");

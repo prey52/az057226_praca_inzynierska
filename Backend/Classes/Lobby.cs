@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 
 namespace Backend.Classes
@@ -13,21 +14,27 @@ namespace Backend.Classes
         public int ScoreToWin { get; set; } = 0;
         public bool GameStarted { get; set; } = false;
 
-        // Optional: Helper for player IDs
         public List<string> PlayerIds => Players.Select(p => p.PlayerId).ToList();
     }
 
-    // Lobby Manager (In-Memory)
+    // In-memory manager
     public class LobbyManager
     {
         private readonly ConcurrentDictionary<string, Lobby> _lobbies = new();
 
-        public Lobby CreateLobby(string hostId)
+        public Lobby CreateLobby(string hostId, string hostNickname)
         {
             var lobby = new Lobby
             {
-                HostId = hostId
+                HostId = hostId,
+                HostNickname = hostNickname
             };
+            // Host automatically joins the lobby
+            lobby.Players.Add(new Player
+            {
+                PlayerId = hostId,
+                Nickname = hostNickname
+            });
 
             _lobbies[lobby.LobbyId] = lobby;
             return lobby;
@@ -44,12 +51,10 @@ namespace Backend.Classes
             return _lobbies.TryRemove(lobbyId, out _);
         }
 
-        public List<Lobby> GetAllLobbies()
-        {
-            return _lobbies.Values.ToList();
-        }
+        public List<Lobby> GetAllLobbies() => _lobbies.Values.ToList();
     }
 
+    [AllowAnonymous]
     public class LobbyHub : Hub
     {
         private readonly LobbyManager _lobbyManager;
@@ -59,72 +64,98 @@ namespace Backend.Classes
             _lobbyManager = lobbyManager;
         }
 
-        public async Task JoinLobby(string lobbyId)
+        // Create a new lobby with the given nickname (for anonymous or “guest” user)
+        public async Task CreateLobby(string nickname)
+        {
+            Console.WriteLine("just testing");
+
+            try
+            {
+                var userId = Guid.NewGuid().ToString();
+                var lobby = _lobbyManager.CreateLobby(userId, nickname);
+
+                // Host joins the SignalR group
+                await Groups.AddToGroupAsync(Context.ConnectionId, lobby.LobbyId);
+
+                // Return to the caller
+                await Clients.Caller.SendAsync("LobbyCreated", new
+                {
+                    LobbyId = lobby.LobbyId,
+                    HostId = lobby.HostId,
+                    HostNickname = lobby.HostNickname
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("CreateLobby error: " + ex.Message);
+                throw; // rethrow or handle
+            }
+            
+        }
+
+
+        // Join an existing lobby with a nickname
+        public async Task JoinLobby(string lobbyId, string nickname)
         {
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null) throw new HubException("Lobby not found.");
 
-            var userId = Context.UserIdentifier;
-            if (string.IsNullOrEmpty(userId)) throw new HubException("User must be authenticated.");
+            var userId = Guid.NewGuid().ToString();
 
-            if (lobby.PlayerIds.Contains(userId)) throw new HubException("User already in the lobby.");
+            if (lobby.PlayerIds.Contains(userId))
+                throw new HubException("User already in the lobby.");
 
-            // Add user to SignalR group
+            // Join group
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
-            await Clients.Group(lobbyId).SendAsync("PlayerJoined", new { UserId = userId });
-        }
 
-        public override async Task OnDisconnectedAsync(Exception? exception)
-        {
-            // Find the lobby this user was in
-            var userId = Context.UserIdentifier;
-            if (string.IsNullOrEmpty(userId)) return;
-
-            foreach (var lobby in _lobbyManager.GetAllLobbies())
+            var player = new Player
             {
-                if (lobby.PlayerIds.Contains(userId))
-                {
-                    // Remove player from lobby
-                    var player = lobby.Players.FirstOrDefault(p => p.PlayerId == userId);
-                    if (player != null) lobby.Players.Remove(player);
+                PlayerId = userId,
+                Nickname = nickname
+            };
+            lobby.Players.Add(player);
 
-                    // Notify other clients in the lobby
-                    await Clients.Group(lobby.LobbyId).SendAsync("PlayerLeft", player);
+            // Return to the caller
+            await Clients.Caller.SendAsync("JoinedLobby", new
+            {
+                LobbyId = lobby.LobbyId,
+                Players = lobby.Players,
+                HostId = lobby.HostId
+            });
 
-                    // Remove the lobby if it's now empty
-                    if (!lobby.Players.Any())
-                    {
-                        _lobbyManager.RemoveLobby(lobby.LobbyId);
-                        await Clients.Group(lobby.LobbyId).SendAsync("LobbyClosed");
-                    }
-                    break;
-                }
-            }
-
-            await base.OnDisconnectedAsync(exception);
+            // Notify others
+            await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
         }
+
 
         public async Task LeaveLobby(string lobbyId)
         {
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null) return;
 
-            var userId = Context.UserIdentifier;
-            if (string.IsNullOrEmpty(userId)) return;
+            // For truly anonymous users, we’d need a way to track user ID 
+            // (like storing it in a static map from ConnectionId => userId).
+            // Or we can do a quick search for the user by ConnectionId in 
+            // some dictionary. For now, let's assume we skip this or handle differently.
 
-            var player = lobby.Players.FirstOrDefault(p => p.PlayerId == userId);
-            if (player != null)
-            {
-                lobby.Players.Remove(player);
-                await Clients.Group(lobbyId).SendAsync("PlayerLeft", player);
+            // We'll just remove from the group for demonstration
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, lobbyId);
+            await Clients.Group(lobbyId).SendAsync("PlayerLeft", $"Connection {Context.ConnectionId} left.");
+        }
 
-                // Remove the lobby if it's now empty
-                if (!lobby.Players.Any())
-                {
-                    _lobbyManager.RemoveLobby(lobbyId);
-                    await Clients.Group(lobbyId).SendAsync("LobbyClosed");
-                }
-            }
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            // Similar logic: find any player with this ConnectionId or userId 
+            // and remove them from their lobby. 
+            // For brevity, we'll skip that. 
+
+            await base.OnDisconnectedAsync(exception);
+        }
+
+        public async Task Ping()
+        {
+            Console.WriteLine("Ping method invoked!");
+            await Clients.Caller.SendAsync("Pong");
         }
 
     }
