@@ -36,9 +36,6 @@ else
         <button @onclick="JoinLobby">Join Lobby</button>
     </div>
 
-    <button @onclick="TestNavigate">Test Navigate</button>
-
-
     @if (!string.IsNullOrEmpty(ErrorMessage))
     {
         <p style="color:red;">@ErrorMessage</p>
@@ -46,14 +43,6 @@ else
 }
 
 @code {
-
-    private void TestNavigate()
-    {
-        Console.WriteLine("TestNavigate clicked.");
-        NavigationManager.NavigateTo("/login");
-        // or "/lobby/abcd"
-    }
-
     // Fields
     private HubConnection? hubConnection;
     private bool isLoading = true;

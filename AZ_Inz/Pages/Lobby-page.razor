@@ -3,12 +3,13 @@
 @using AZ_Inz.Classes
 @inject NavigationManager Navigation
 @inject CustomAuthStateProvider AuthStateProvider
+@inject HttpClient Http   // Only if needed for deck-lists or something else
 
 <h2>Lobby ID: @LobbyId</h2>
 
 @if (!string.IsNullOrEmpty(ErrorMessage))
 {
-        <p style="color:red">@ErrorMessage</p>
+        <p style="color:red;">@ErrorMessage</p>
 }
 
 @if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
@@ -27,15 +28,53 @@ else
 
     @if (IsHost)
     {
-                <h3>Lobby Settings</h3>
-                <label>Score to Win:</label>
-                <input type="number" @bind="ScoreToWin" />
+                <h3>Lobby Settings (Host Only)</h3>
 
+                <div>
+                    <label>Score to Win: </label>
+                    <input type="number" @bind="ScoreToWin" />
+                </div>
+
+                <h4>Answer Decks</h4>
+        @if (AllAnswerDecks is null)
+        {
+                        <p>Loading answer decks...</p>
+        }
+        else
+        {
+            @foreach (var deck in AllAnswerDecks)
+            {
+                                <div>
+                                    <input type="checkbox"
+                                           @bind="deck.IsSelected" />
+                                    <label>@deck.Name</label>
+                                </div>
+            }
+        }
+
+                <h4>Question Decks</h4>
+        @if (AllQuestionDecks is null)
+        {
+                        <p>Loading question decks...</p>
+        }
+        else
+        {
+            @foreach (var deck in AllQuestionDecks)
+            {
+                                <div>
+                                    <input type="checkbox"
+                                           @bind="deck.IsSelected" />
+                                    <label>@deck.Name</label>
+                                </div>
+            }
+        }
+
+                <button @onclick="SaveLobbyOptions">Save Options</button>
                 <button @onclick="StartGame">Start Game</button>
     }
     else
     {
-                <p>Waiting for the host to start the game...</p>
+                <p>Waiting for the host to select decks and start the game...</p>
     }
 }
 
@@ -43,61 +82,81 @@ else
     [Parameter] public string LobbyId { get; set; }
 
     private HubConnection hubConnection;
-    private List<Player> Players = new();
-    private bool IsHost;
-    private int ScoreToWin;
     private string ErrorMessage;
+
+    private List<Player> Players = new();        // from the Lobby details
+    private bool IsHost = false;                 // are we the host user?
+    private int ScoreToWin;                      // from the Lobby
+
+    // We'll store "all decks" in a simple ViewModel with IsSelected
+    private List<AnswerDeckViewModel> AllAnswerDecks;
+    private List<QuestionDeckViewModel> AllQuestionDecks;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // 1. Build SignalR connection
+            // 1. Build the SignalR connection
             hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
             // 2. Subscribe to real-time events
+            //    a) A new player joined
             hubConnection.On<Player>("PlayerJoined", player =>
             {
                 Players.Add(player);
                 StateHasChanged();
             });
 
-            hubConnection.On<Player>("PlayerLeft", player =>
+            //    b) The host updated ScoreToWin or decks
+            hubConnection.On<object>("LobbyOptionsUpdated", data =>
             {
-                Players.RemoveAll(p => p.PlayerId == player.PlayerId);
-                StateHasChanged();
+                // You might parse 'data' or do strongly typed approach
+                // For quick example, let's do a dictionary parse:
+                var dict = data as Dictionary<string, object>;
+                if (dict != null && dict.ContainsKey("ScoreToWin"))
+                {
+                    ScoreToWin = Convert.ToInt32(dict["ScoreToWin"]);
+                }
+                // You could also refresh the SelectedAnswersDecks / SelectedQuestionsDecks 
+                // if you stored them in your UI, but typically only the host would see them
+                // We'll skip the advanced parsing here.
+                InvokeAsync(StateHasChanged);
             });
 
-            hubConnection.On("LobbyClosed", async () =>
-            {
-                ErrorMessage = "The lobby has been closed.";
-                await hubConnection.StopAsync();
-                StateHasChanged();
-            });
+            //    c) If you want "LobbyClosed" or "GameStarted" events, subscribe similarly
 
             // 3. Start the connection
             await hubConnection.StartAsync();
 
-            // 4. Call a new hub method "GetLobbyDetails"
-            var lobby = await hubConnection.InvokeAsync<Lobby>("GetLobbyDetails", LobbyId);
+            // 4. Fetch the lobby details
+            Lobby lobby = await hubConnection.InvokeAsync<Lobby>("GetLobbyDetails", LobbyId);
             if (lobby == null)
             {
-                ErrorMessage = "Lobby not found or error retrieving details.";
+                ErrorMessage = "Lobby not found.";
                 return;
             }
 
-            // Populate UI data
+            // Populate page data
             Players = lobby.Players;
             ScoreToWin = lobby.ScoreToWin;
 
-            // Determine if user is host
+            // 5. Determine if current user is host
+            //    If we don't have real auth, you might just store userId in a cookie
+            //    For demonstration, assume we are pulling from a cookie or state
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var userId = authState.User?.FindFirst(c => c.Type == "sub")?.Value;
-            // or if you're storing user ID in a cookie for a guest, retrieve that instead.
+            var userId = authState.User?.FindFirst("sub")?.Value;
+            // If you only have ephemeral IDs, you'd get them from localStorage/cookie
+            // For example: var userId = await JS.InvokeAsync<string>("cookieManager.getCookie", "guestId");
+
             IsHost = (userId == lobby.HostId);
+
+            // 6. (Optional) Load all decks from your DB so host can pick them
+            //    If you want to do it purely via SignalR, create a method for it.
+            //    For demonstration, let's call a REST endpoint "/api/decks/all-decks"
+            await LoadAllDecks();
         }
         catch (Exception ex)
         {
@@ -105,22 +164,60 @@ else
         }
     }
 
-    private async Task StartGame()
+    // Example "LoadAllDecks" from a REST endpoint
+    // so the host can choose which to enable
+    private async Task LoadAllDecks()
     {
         try
         {
-            if (!IsHost) return;
+            var response = await Http.GetFromJsonAsync<AvailableDecksDto>("https://localhost:7060/api/Decks/all-decks");
+            AllAnswerDecks = response.AnswerDecks
+                .Select(ad => new AnswerDeckViewModel { Id = ad.Id, Name = ad.Name })
+                .ToList();
 
-            // Example: call "StartGame" hub method
-            await hubConnection.SendAsync("StartGame", LobbyId);
-
-            // Possibly navigate to /game/... 
-            Navigation.NavigateTo($"/game/{LobbyId}");
+            AllQuestionDecks = response.QuestionDecks
+                .Select(qd => new QuestionDeckViewModel { Id = qd.Id, Name = qd.Name })
+                .ToList();
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Error: {ex.Message}";
+            Console.WriteLine("Failed to load decks: " + ex.Message);
         }
+    }
+
+    private async Task SaveLobbyOptions()
+    {
+        try
+        {
+            // We'll gather the selected deck IDs
+            var chosenAnswerDeckIds = AllAnswerDecks
+                .Where(d => d.IsSelected)
+                .Select(d => d.Id)
+                .ToList();
+
+            var chosenQuestionDeckIds = AllQuestionDecks
+                .Where(d => d.IsSelected)
+                .Select(d => d.Id)
+                .ToList();
+
+            // Call the hub method
+            await hubConnection.SendAsync("SetLobbyOptions", LobbyId, ScoreToWin, chosenAnswerDeckIds, chosenQuestionDeckIds);
+
+            // After success, perhaps show a small message or update UI
+            Console.WriteLine("Lobby options saved!");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not save lobby options: {ex.Message}";
+        }
+    }
+
+    private async Task StartGame()
+    {
+        // If you have a hub method "StartGame(lobbyId)", call it here
+        // e.g.: await hubConnection.SendAsync("StartGame", LobbyId);
+        // Then maybe navigate to /game or broadcast "GameStarted" 
+        Console.WriteLine("StartGame clicked. Not implemented yet!");
     }
 
     public async ValueTask DisposeAsync()
@@ -129,5 +226,42 @@ else
         {
             await hubConnection.DisposeAsync();
         }
+    }
+
+    // Example models for the UI
+    public class AnswerDeckViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public bool IsSelected { get; set; }
+    }
+    public class QuestionDeckViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    // Matches the shape returned by /api/Decks/all-decks
+    private class AvailableDecksDto
+    {
+        public List<AnswerDeckDto> AnswerDecks { get; set; }
+        public List<QuestionDeckDto> QuestionDecks { get; set; }
+    }
+    private class AnswerDeckDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+    private class QuestionDeckDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+    public class CreateLobbyDTO
+    {
+        public string LobbyId { get; set; }
+        public string HostId { get; set; }
+        public string HostNickname { get; set; }
     }
 }

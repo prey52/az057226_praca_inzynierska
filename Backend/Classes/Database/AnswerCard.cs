@@ -9,5 +9,4 @@
         public int AnswerDeckId { get; set; }
         public AnswerDeck AnswerDeck { get; set; }
     }
-
 }

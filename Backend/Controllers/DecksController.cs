@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -7,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Identity;
 using Backend.Classes.Database;
+using Backend.Classes.DTO;
 
 [Route("api/[controller]")]
 //[Authorize]
@@ -157,16 +157,30 @@ public class DecksController : ControllerBase
         }
     }
 
+    [HttpGet("all-decks")]
+    public IActionResult GetAllDecks()
+    {
+        var answerDecks = _context.AnswerDecks
+            .Select(ad => new AnswerDeckDto
+            {
+                Id = ad.Id,
+                Name = ad.Name
+            })
+            .ToList();
+
+        var questionDecks = _context.QuestionDecks
+            .Select(qd => new QuestionDeckDto
+            {
+                Id = qd.Id,
+                Name = qd.Name
+            })
+            .ToList();
+
+        return Ok(new AvailableDecksDto
+        {
+            AnswerDecks = answerDecks,
+            QuestionDecks = questionDecks
+        });
+    }
 }
 
-public class DeckUploadDto
-{
-    [Required]
-    public string DeckName { get; set; }
-
-    [Required]
-    public string DeckType { get; set; } // "questions" or "answers"
-
-    [Required]
-    public IFormFile File { get; set; }
-}
