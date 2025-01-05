@@ -1,10 +1,8 @@
 ﻿namespace Backend.Classes.DTO
 {
-    public class QuestionDeckDto
+    public class QuestionDeckDTO
     {
         public int Id { get; set; }
         public string Name { get; set; }
-        // Possibly: public bool OwnedByUser { get; set; }
     }
-
 }

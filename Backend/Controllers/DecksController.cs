@@ -42,7 +42,7 @@ public class DecksController : ControllerBase
 
     [Authorize]
     [HttpPost("upload")]
-    public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDto model)
+    public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDTO model)
     {
 
         var userId = this.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
@@ -161,7 +161,7 @@ public class DecksController : ControllerBase
     public IActionResult GetAllDecks()
     {
         var answerDecks = _context.AnswerDecks
-            .Select(ad => new AnswerDeckDto
+            .Select(ad => new AnswerDeckDTO
             {
                 Id = ad.Id,
                 Name = ad.Name
@@ -169,7 +169,7 @@ public class DecksController : ControllerBase
             .ToList();
 
         var questionDecks = _context.QuestionDecks
-            .Select(qd => new QuestionDeckDto
+            .Select(qd => new QuestionDeckDTO
             {
                 Id = qd.Id,
                 Name = qd.Name

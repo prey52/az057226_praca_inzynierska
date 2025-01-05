@@ -3,7 +3,9 @@
 @using AZ_Inz.Classes
 @inject NavigationManager Navigation
 @inject CustomAuthStateProvider AuthStateProvider
-@inject HttpClient Http   // Only if needed for deck-lists or something else
+@inject HttpClient Http
+@inject IJSRuntime JS
+
 
 <h2>Lobby ID: @LobbyId</h2>
 
@@ -81,14 +83,15 @@ else
 @code {
     [Parameter] public string LobbyId { get; set; }
 
+    private bool isLoading = true;
     private HubConnection hubConnection;
     private string ErrorMessage;
 
-    private List<Player> Players = new();        // from the Lobby details
-    private bool IsHost = false;                 // are we the host user?
-    private int ScoreToWin;                      // from the Lobby
+    private List<Player> Players = new();
+    private bool IsHost = false;
+    private string myNickname;
 
-    // We'll store "all decks" in a simple ViewModel with IsSelected
+    private int ScoreToWin;
     private List<AnswerDeckViewModel> AllAnswerDecks;
     private List<QuestionDeckViewModel> AllQuestionDecks;
 
@@ -96,43 +99,30 @@ else
     {
         try
         {
-            // 1. Build the SignalR connection
+            //Get nickname from cookie or from auth
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity.IsAuthenticated)
+            {
+                myNickname = authState.User.Identity.Name;
+            }
+            else
+            {
+                myNickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
+            }
+
+            //SignalR hub connection
             hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
-            // 2. Subscribe to real-time events
-            //    a) A new player joined
-            hubConnection.On<Player>("PlayerJoined", player =>
-            {
-                Players.Add(player);
-                StateHasChanged();
-            });
+            //Hub events
+            hubConnection.On<AnotherJoinedLobbyResponse>("PlayerJoined", OnPlayerJoined);
 
-            //    b) The host updated ScoreToWin or decks
-            hubConnection.On<object>("LobbyOptionsUpdated", data =>
-            {
-                // You might parse 'data' or do strongly typed approach
-                // For quick example, let's do a dictionary parse:
-                var dict = data as Dictionary<string, object>;
-                if (dict != null && dict.ContainsKey("ScoreToWin"))
-                {
-                    ScoreToWin = Convert.ToInt32(dict["ScoreToWin"]);
-                }
-                // You could also refresh the SelectedAnswersDecks / SelectedQuestionsDecks 
-                // if you stored them in your UI, but typically only the host would see them
-                // We'll skip the advanced parsing here.
-                InvokeAsync(StateHasChanged);
-            });
-
-            //    c) If you want "LobbyClosed" or "GameStarted" events, subscribe similarly
-
-            // 3. Start the connection
             await hubConnection.StartAsync();
 
-            // 4. Fetch the lobby details
-            Lobby lobby = await hubConnection.InvokeAsync<Lobby>("GetLobbyDetails", LobbyId);
+            //Fetch the lobby details
+            LobbyInfoDTO lobby = await hubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
             if (lobby == null)
             {
                 ErrorMessage = "Lobby not found.";
@@ -141,27 +131,21 @@ else
 
             // Populate page data
             Players = lobby.Players;
-            ScoreToWin = lobby.ScoreToWin;
 
-            // 5. Determine if current user is host
-            //    If we don't have real auth, you might just store userId in a cookie
-            //    For demonstration, assume we are pulling from a cookie or state
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var userId = authState.User?.FindFirst("sub")?.Value;
-            // If you only have ephemeral IDs, you'd get them from localStorage/cookie
-            // For example: var userId = await JS.InvokeAsync<string>("cookieManager.getCookie", "guestId");
+            IsHost = (myNickname == lobby.HostNickname);
 
-            IsHost = (userId == lobby.HostId);
-
-            // 6. (Optional) Load all decks from your DB so host can pick them
-            //    If you want to do it purely via SignalR, create a method for it.
-            //    For demonstration, let's call a REST endpoint "/api/decks/all-decks"
             await LoadAllDecks();
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error: {ex.Message}";
         }
+    }
+
+    private void OnPlayerJoined(AnotherJoinedLobbyResponse player)
+    {
+        Console.WriteLine("OnPlayerJoined triggered with data: " + player.Nickname);
+        StateHasChanged();
     }
 
     // Example "LoadAllDecks" from a REST endpoint

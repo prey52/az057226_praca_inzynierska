@@ -48,8 +48,6 @@ else
     private bool isLoading = true;
     private bool _isAuthenticated;
 
-    private string userId;
-
     private string Nickname;              // for anonymous users
     private string LobbyId;
     private string ErrorMessage;
@@ -57,49 +55,34 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Attempt to read from cookie
-        userId = await JS.InvokeAsync<string>("cookieManager.getCookie", "guestId");
-        if (string.IsNullOrEmpty(userId))
-        {
-            // 2. Generate new ID and store it
-            userId = Guid.NewGuid().ToString();
-
-            // For a 30-day cookie
-            await JS.InvokeVoidAsync("cookieManager.setCookie", "guestId", userId, 30);
-        }
-
-        Console.WriteLine($"Current user ID: {userId}");
-
         try
         {
-            // 1. Determine if user is authenticated
+            //If user is authenticated
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-            // If logged in, get the display name or fallback
             if (_isAuthenticated)
             {
                 _loggedUserDisplayName = authState.User.FindFirst(ClaimTypes.Name)?.Value
                                          ?? "Authenticated User";
             }
 
-            // 2. Build and start the SignalR hub connection
+            //SignalR hub connection
             hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
-            // 3. Subscribe to hub events
+            //Hub events
             hubConnection.On<LobbyCreatedResponse>("LobbyCreated", OnLobbyCreated);
             hubConnection.On<JoinedLobbyResponse>("JoinedLobby", OnJoinedLobby);
-            hubConnection.On<object>("PlayerJoined", OnPlayerJoined);
 
             hubConnection.On<Exception>("OnError", e =>
             {
                 Console.WriteLine("Hub error: " + e.Message);
             });
 
-            // Also consider hooking into built-in events:
+            //Built-in events:
             hubConnection.Closed += async (ex) =>
             {
                 Console.WriteLine("Connection closed with error: " + ex?.Message);
@@ -123,7 +106,7 @@ else
         StateHasChanged();
     }
 
-    private async void CreateLobby()
+    /*private async void CreateLobby()
     {
         ErrorMessage = string.Empty;
 
@@ -151,7 +134,36 @@ else
             ErrorMessage = $"Error creating lobby: {ex.Message}";
             Console.WriteLine(ErrorMessage);
         }
+    }*/
+
+    private async Task CreateLobby()
+    {
+        try
+        {
+            ErrorMessage = string.Empty;
+
+            if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
+            {
+                ErrorMessage = "Nickname is required for unauthenticated users.";
+                return;
+            }
+
+            var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
+
+            // Save the nickname to a cookie for unauthenticated users
+            if (!_isAuthenticated)
+            {
+                await JS.InvokeVoidAsync("cookieManager.setCookie", "nickname", Nickname, 1);
+            }
+
+            await hubConnection.SendAsync("CreateLobby", nameToUse);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error creating lobby: {ex.Message}";
+        }
     }
+
 
     private async void JoinLobby()
     {
@@ -172,13 +184,7 @@ else
         // Decide a name to display
         var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
 
-        // Decide the user ID
-        // For an authenticated user, you might do:
-        //    var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        // Or use a property you already set. For a guest, you read from cookie or local storage.
-        // For demonstration, let's assume you already have a 'userId' field set in OnInitializedAsync.
-
-        Console.WriteLine($"Joining lobby with userId = {userId}");
+        Console.WriteLine($"Joining lobby with Nickname = {nameToUse}");
 
         try
         {
@@ -188,7 +194,7 @@ else
                 return;
             }
 
-            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}, {userId}) to hub...");
+            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}) to hub...");
             await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse);
         }
         catch (Exception ex)
@@ -215,7 +221,7 @@ else
 
     private void OnJoinedLobby(JoinedLobbyResponse data)
     {
-        Console.WriteLine($"OnJoinedLobby triggered with LobbyId = {data.LobbyId}, Players count = {data.Players.Count}, HostId = {data.HostId}");
+        Console.WriteLine($"OnJoinedLobby triggered with LobbyId = {data.LobbyId}, Players count = {data.Players.Count}");
 
         if (!string.IsNullOrEmpty(data.LobbyId))
         {
@@ -225,14 +231,6 @@ else
         {
             ErrorMessage = "Failed to parse JoinedLobby data.";
         }
-    }
-
-
-    private void OnPlayerJoined(object playerData)
-    {
-        Console.WriteLine("OnPlayerJoined triggered with data: " + playerData);
-        // In the main page, we might do nothing. In the /lobby/:id page,
-        // we would refresh the player list, etc.
     }
 
     public async ValueTask DisposeAsync()

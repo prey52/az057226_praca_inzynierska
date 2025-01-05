@@ -89,8 +89,6 @@ namespace Backend.Classes
         // Join an existing lobby with a nickname
         public async Task JoinLobby(string lobbyId, string nickname)
         {
-            Console.WriteLine("JoinLobby invoked with userId = " + nickname);
-
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
@@ -112,63 +110,30 @@ namespace Backend.Classes
             await Clients.Caller.SendAsync("JoinedLobby", new
             {
                 LobbyId = lobby.LobbyId,
-                Players = lobby.Players,
-                HostNickname = lobby.HostNickname
+                Players = lobby.Players, //list
             });
+            Console.WriteLine($"back-end: player {nickname}");
 
             // Notify others in the lobby about the new player
-            await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
+            await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", nickname);
         }
         
-        public async Task<Lobby> GetLobbyDetails(string lobbyId)
+        public async Task<LobbyInfoDTO> GetLobbyDetails(string lobbyId)
         {
+            Console.WriteLine("Gathered lobby info");
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
 
-            return lobby;
-        }
-
-        /*public async Task SetLobbyOptions(string lobbyId, int scoreToWin, List<int> answerDeckIds, List<int> questionDeckIds)
-        {
-            var lobby = _lobbyManager.GetLobby(lobbyId);
-            if (lobby == null)
-                throw new HubException("Lobby not found.");
-
-            // Check if caller is host
-            var userId = Context.UserIdentifier;
-            if (lobby.HostId != userId)
-                throw new HubException("Only the host can set lobby options.");
-
-            // Update score
-            lobby.ScoreToWin = scoreToWin;
-
-            // Clear old decks
-            lobby.SelectedAnswersDecks.Clear();
-            lobby.SelectedQuestionsDecks.Clear();
-
-            // Query DB for these deck IDs
-            var answerDecks = _context.AnswerDecks
-                .Where(ad => answerDeckIds.Contains(ad.Id))
-                .ToList();
-
-            var questionDecks = _context.QuestionDecks
-                .Where(qd => questionDeckIds.Contains(qd.Id))
-                .ToList();
-
-            // Add them to the lobby
-            lobby.SelectedAnswersDecks.AddRange(answerDecks);
-            lobby.SelectedQuestionsDecks.AddRange(questionDecks);
-
-            // Optionally broadcast to others
-            await Clients.Group(lobbyId).SendAsync("LobbyOptionsUpdated", new
+            LobbyInfoDTO lobbyInfo = new LobbyInfoDTO()
             {
-                ScoreToWin = lobby.ScoreToWin,
-                AnswerDecks = lobby.SelectedAnswersDecks.Select(d => new { d.Id, d.Name }),
-                QuestionDecks = lobby.SelectedQuestionsDecks.Select(d => new { d.Id, d.Name })
-            });
-        }*/
+                LobbyId = lobby.LobbyId,
+                HostNickname = lobby.HostNickname,
+                Players = lobby.Players
+            };
 
+            return lobbyInfo;
+        }
 
         public async Task LeaveLobby(string lobbyId)
         {

@@ -2,7 +2,7 @@
 {
     public class AvailableDecksDto
     {
-        public List<AnswerDeckDto> AnswerDecks { get; set; }
-        public List<QuestionDeckDto> QuestionDecks { get; set; }
+        public List<AnswerDeckDTO> AnswerDecks { get; set; }
+        public List<QuestionDeckDTO> QuestionDecks { get; set; }
     }
 }

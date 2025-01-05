@@ -2,7 +2,7 @@
 
 namespace Backend.Classes.DTO
 {
-    public class DeckUploadDto
+    public class DeckUploadDTO
     {
         [Required]
         public string DeckName { get; set; }
