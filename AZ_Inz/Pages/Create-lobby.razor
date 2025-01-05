@@ -189,7 +189,7 @@ else
             }
 
             Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}, {userId}) to hub...");
-            await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse, userId);
+            await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse);
         }
         catch (Exception ex)
         {
