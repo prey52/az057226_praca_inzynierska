@@ -8,6 +8,7 @@
 
 
 <h2>Lobby ID: @LobbyId</h2>
+<button @onclick="ForceReload">Force reload</button>
 
 @if (!string.IsNullOrEmpty(ErrorMessage))
 {
@@ -24,7 +25,7 @@ else
         <ul>
         @foreach (var player in Players)
         {
-                    <li>@player.Nickname (@player.PlayerId)</li>
+                    <li>@player.Nickname</li>
         }
         </ul>
 
@@ -95,6 +96,12 @@ else
     private List<AnswerDeckViewModel> AllAnswerDecks;
     private List<QuestionDeckViewModel> AllQuestionDecks;
 
+    protected void ForceReload()
+    {
+        Console.WriteLine("Debug: Reload");
+        StateHasChanged();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -117,8 +124,9 @@ else
                 .Build();
 
             //Hub events
-            hubConnection.On<AnotherJoinedLobbyResponse>("PlayerJoined", OnPlayerJoined);
-
+            hubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
+            hubConnection.On<object>("test", OnTest);
+            
             await hubConnection.StartAsync();
 
             //Fetch the lobby details
@@ -142,11 +150,20 @@ else
         }
     }
 
-    private void OnPlayerJoined(AnotherJoinedLobbyResponse player)
+    public void OnPlayerJoined(Player player)
     {
+        Players.Add(player);
         Console.WriteLine("OnPlayerJoined triggered with data: " + player.Nickname);
+
         StateHasChanged();
     }
+
+    public void OnTest(object player)
+    {
+        Console.WriteLine("debug: signalR");
+    }
+
+
 
     // Example "LoadAllDecks" from a REST endpoint
     // so the host can choose which to enable
@@ -241,11 +258,5 @@ else
     {
         public int Id { get; set; }
         public string Name { get; set; }
-    }
-    public class CreateLobbyDTO
-    {
-        public string LobbyId { get; set; }
-        public string HostId { get; set; }
-        public string HostNickname { get; set; }
     }
 }

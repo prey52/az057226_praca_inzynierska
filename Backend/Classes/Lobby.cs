@@ -115,9 +115,10 @@ namespace Backend.Classes
             Console.WriteLine($"back-end: player {nickname}");
 
             // Notify others in the lobby about the new player
-            await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", nickname);
+            //await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
+            await Clients.All.SendAsync("test", nickname);
         }
-        
+
         public async Task<LobbyInfoDTO> GetLobbyDetails(string lobbyId)
         {
             Console.WriteLine("Gathered lobby info");
