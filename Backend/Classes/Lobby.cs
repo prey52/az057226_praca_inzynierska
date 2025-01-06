@@ -115,13 +115,13 @@ namespace Backend.Classes
             Console.WriteLine($"back-end: player {nickname}");
 
             // Notify others in the lobby about the new player
-            //await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
-            await Clients.All.SendAsync("test", nickname);
+            await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
+            //await Clients.All.SendAsync("PlayerJoined", player);
         }
 
         public async Task<LobbyInfoDTO> GetLobbyDetails(string lobbyId)
         {
-            Console.WriteLine("Gathered lobby info");
+            await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");

@@ -125,7 +125,6 @@ else
 
             //Hub events
             hubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
-            hubConnection.On<object>("test", OnTest);
             
             await hubConnection.StartAsync();
 
@@ -157,13 +156,6 @@ else
 
         StateHasChanged();
     }
-
-    public void OnTest(object player)
-    {
-        Console.WriteLine("debug: signalR");
-    }
-
-
 
     // Example "LoadAllDecks" from a REST endpoint
     // so the host can choose which to enable
