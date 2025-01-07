@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Security.Claims
 @using AZ_Inz.Classes
+@using AZ_Inz.Classes.DTO
 @inject CustomAuthStateProvider AuthStateProvider
 @inject CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
@@ -74,8 +75,8 @@ else
                 .Build();
 
             //Hub events
-            hubConnection.On<LobbyCreatedResponse>("LobbyCreated", OnLobbyCreated);
-            hubConnection.On<JoinedLobbyResponse>("JoinedLobby", OnJoinedLobby);
+            hubConnection.On<LobbyCreatedResponseDTO>("LobbyCreated", OnLobbyCreated);
+            hubConnection.On<JoinedLobbyResponseDTO>("JoinedLobby", OnJoinedLobby);
 
             hubConnection.On<Exception>("OnError", e =>
             {
@@ -105,36 +106,6 @@ else
         isLoading = false;
         StateHasChanged();
     }
-
-    /*private async void CreateLobby()
-    {
-        ErrorMessage = string.Empty;
-
-        if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
-        {
-            ErrorMessage = "Nickname is required for unauthenticated users to create a lobby.";
-            return;
-        }
-
-        var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
-
-        try
-        {
-            if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
-            {
-                ErrorMessage = "Not connected to the hub.";
-                return;
-            }
-
-            Console.WriteLine($"Sending CreateLobby({nameToUse}) to hub...");
-            await hubConnection.SendAsync("CreateLobby", nameToUse);
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = $"Error creating lobby: {ex.Message}";
-            Console.WriteLine(ErrorMessage);
-        }
-    }*/
 
     private async Task CreateLobby()
     {
@@ -205,7 +176,7 @@ else
     }
 
 
-    private void OnLobbyCreated(LobbyCreatedResponse data)
+    private void OnLobbyCreated(LobbyCreatedResponseDTO data)
     {
         Console.WriteLine("OnLobbyCreated triggered with data: " + data.LobbyId);
 
@@ -219,7 +190,7 @@ else
         }
     }
 
-    private void OnJoinedLobby(JoinedLobbyResponse data)
+    private void OnJoinedLobby(JoinedLobbyResponseDTO data)
     {
         Console.WriteLine($"OnJoinedLobby triggered with LobbyId = {data.LobbyId}, Players count = {data.Players.Count}");
 

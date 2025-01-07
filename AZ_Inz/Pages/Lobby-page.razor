@@ -1,6 +1,8 @@
 ﻿@page "/lobby/{LobbyId}"
 @using Microsoft.AspNetCore.SignalR.Client
 @using AZ_Inz.Classes
+@using AZ_Inz.Classes.DTO
+@using AZ_Inz.Classes.ViewModel
 @inject NavigationManager Navigation
 @inject CustomAuthStateProvider AuthStateProvider
 @inject HttpClient Http
@@ -8,7 +10,6 @@
 
 
 <h2>Lobby ID: @LobbyId</h2>
-<button @onclick="ForceReload">Force reload</button>
 
 @if (!string.IsNullOrEmpty(ErrorMessage))
 {
@@ -71,8 +72,6 @@ else
                                 </div>
             }
         }
-
-                <button @onclick="SaveLobbyOptions">Save Options</button>
                 <button @onclick="StartGame">Start Game</button>
     }
     else
@@ -95,12 +94,6 @@ else
     private int ScoreToWin;
     private List<AnswerDeckViewModel> AllAnswerDecks;
     private List<QuestionDeckViewModel> AllQuestionDecks;
-
-    protected void ForceReload()
-    {
-        Console.WriteLine("Debug: Reload");
-        StateHasChanged();
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -125,7 +118,8 @@ else
 
             //Hub events
             hubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
-            
+            hubConnection.On<string>("GameplayRedirection", OnGameplayRedirection);
+
             await hubConnection.StartAsync();
 
             //Fetch the lobby details
@@ -136,9 +130,7 @@ else
                 return;
             }
 
-            // Populate page data
             Players = lobby.Players;
-
             IsHost = (myNickname == lobby.HostNickname);
 
             await LoadAllDecks();
@@ -152,18 +144,16 @@ else
     public void OnPlayerJoined(Player player)
     {
         Players.Add(player);
-        Console.WriteLine("OnPlayerJoined triggered with data: " + player.Nickname);
+        //Console.WriteLine("OnPlayerJoined triggered with data: " + player.Nickname);
 
         StateHasChanged();
     }
 
-    // Example "LoadAllDecks" from a REST endpoint
-    // so the host can choose which to enable
     private async Task LoadAllDecks()
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<AvailableDecksDto>("https://localhost:7060/api/Decks/all-decks");
+            var response = await Http.GetFromJsonAsync<AvailableDecksDTO>("https://localhost:7060/api/Decks/all-decks");
             AllAnswerDecks = response.AnswerDecks
                 .Select(ad => new AnswerDeckViewModel { Id = ad.Id, Name = ad.Name })
                 .ToList();
@@ -178,11 +168,10 @@ else
         }
     }
 
-    private async Task SaveLobbyOptions()
+    private async Task StartGame()
     {
         try
         {
-            // We'll gather the selected deck IDs
             var chosenAnswerDeckIds = AllAnswerDecks
                 .Where(d => d.IsSelected)
                 .Select(d => d.Id)
@@ -193,11 +182,16 @@ else
                 .Select(d => d.Id)
                 .ToList();
 
-            // Call the hub method
-            await hubConnection.SendAsync("SetLobbyOptions", LobbyId, ScoreToWin, chosenAnswerDeckIds, chosenQuestionDeckIds);
+            GameInfoDTO gameInfo = new()
+            {
+                lobbyID = LobbyId,
+                ScoreToWin = ScoreToWin,
+                ChosenAnswersDecks = chosenAnswerDeckIds,
+                ChosenQuestionsDecks = chosenQuestionDeckIds
+            };
 
-            // After success, perhaps show a small message or update UI
-            Console.WriteLine("Lobby options saved!");
+            Console.WriteLine("Starting the game");
+            await hubConnection.SendAsync("StartGame", gameInfo);
         }
         catch (Exception ex)
         {
@@ -205,12 +199,9 @@ else
         }
     }
 
-    private async Task StartGame()
+    private async Task OnGameplayRedirection(string gameId)
     {
-        // If you have a hub method "StartGame(lobbyId)", call it here
-        // e.g.: await hubConnection.SendAsync("StartGame", LobbyId);
-        // Then maybe navigate to /game or broadcast "GameStarted" 
-        Console.WriteLine("StartGame clicked. Not implemented yet!");
+            Navigation.NavigateTo($"/game/{gameId}");
     }
 
     public async ValueTask DisposeAsync()
@@ -219,36 +210,5 @@ else
         {
             await hubConnection.DisposeAsync();
         }
-    }
-
-    // Example models for the UI
-    public class AnswerDeckViewModel
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public bool IsSelected { get; set; }
-    }
-    public class QuestionDeckViewModel
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public bool IsSelected { get; set; }
-    }
-
-    // Matches the shape returned by /api/Decks/all-decks
-    private class AvailableDecksDto
-    {
-        public List<AnswerDeckDto> AnswerDecks { get; set; }
-        public List<QuestionDeckDto> QuestionDecks { get; set; }
-    }
-    private class AnswerDeckDto
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-    }
-    private class QuestionDeckDto
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
     }
 }

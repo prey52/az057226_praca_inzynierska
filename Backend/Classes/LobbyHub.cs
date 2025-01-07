@@ -15,7 +15,6 @@ namespace Backend.Classes
         public List<QuestionDeck> SelectedQuestionsDecks { get; set; } = new List<QuestionDeck>();
         public int ScoreToWin { get; set; } = 0;
         public bool GameStarted { get; set; } = false;
-        //public List<string> PlayerIds => Players.Select(p => p.PlayerId).ToList();
     }
 
     // In-memory manager
@@ -71,8 +70,6 @@ namespace Backend.Classes
             {
                 var lobby = _lobbyManager.CreateLobby(nickname);
 
-                await Groups.AddToGroupAsync(Context.ConnectionId, lobby.LobbyId);
-
                 await Clients.Caller.SendAsync("LobbyCreated", new CreateLobbyDTO
                 {
                     LobbyId = lobby.LobbyId,
@@ -82,18 +79,16 @@ namespace Backend.Classes
             catch (Exception ex)
             {
                 Console.WriteLine("CreateLobby error: " + ex.Message);
-                throw; // rethrow or handle
+                throw;
             }
         }
 
-        // Join an existing lobby with a nickname
         public async Task JoinLobby(string lobbyId, string nickname)
         {
             var lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
 
-            // If they've already joined by nickname, skip
             if (lobby.Players.Any(p => p.Nickname == nickname))
                 throw new HubException("That nickname is already taken in this lobby.");
 
@@ -106,17 +101,13 @@ namespace Backend.Classes
             lobby.Players.Add(player);
 
 
-            // Return the updated lobby to the caller
             await Clients.Caller.SendAsync("JoinedLobby", new
             {
                 LobbyId = lobby.LobbyId,
                 Players = lobby.Players, //list
             });
-            Console.WriteLine($"back-end: player {nickname}");
 
-            // Notify others in the lobby about the new player
             await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
-            //await Clients.All.SendAsync("PlayerJoined", player);
         }
 
         public async Task<LobbyInfoDTO> GetLobbyDetails(string lobbyId)
@@ -134,6 +125,12 @@ namespace Backend.Classes
             };
 
             return lobbyInfo;
+        }
+
+        public async Task StartGame(GameInfoDTO gameinfo)
+        {
+            Console.WriteLine($"Redirecting to: {gameinfo.lobbyID}");
+            await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
         }
 
         public async Task LeaveLobby(string lobbyId)

@@ -74,6 +74,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<LobbyManager>();
+builder.Services.AddSingleton<GameStateManager>();
+
 
 var app = builder.Build();
 
@@ -104,6 +106,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<LobbyHub>("/lobbyhub");
+app.MapHub<GameHub>("/gamehub");
 
 app.MapControllers();
 
