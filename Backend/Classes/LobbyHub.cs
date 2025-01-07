@@ -129,7 +129,9 @@ namespace Backend.Classes
 
         public async Task StartGame(GameInfoDTO gameinfo)
         {
+
             Console.WriteLine($"Redirecting to: {gameinfo.lobbyID}");
+
             await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
         }
 

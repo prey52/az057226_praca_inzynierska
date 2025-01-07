@@ -165,7 +165,7 @@ else
                 return;
             }
 
-            Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}) to hub...");
+            //Console.WriteLine($"Sending JoinLobby({LobbyId}, {nameToUse}) to hub...");
             await hubConnection.SendAsync("JoinLobby", LobbyId, nameToUse);
         }
         catch (Exception ex)
@@ -174,7 +174,6 @@ else
             Console.WriteLine(ErrorMessage);
         }
     }
-
 
     private void OnLobbyCreated(LobbyCreatedResponseDTO data)
     {

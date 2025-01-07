@@ -86,8 +86,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//app.UseRouting(); // <--- add this
-
 //enable CORS
 app.UseCors("AllowFrontend");
 

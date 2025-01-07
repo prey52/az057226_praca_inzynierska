@@ -36,8 +36,8 @@ else
     private HubConnection hubConnection;
     private string Nickname;
     private string CurrentQuestionPlayer;
-    private QuestionCard CurrentQuestion;
-    private List<AnswerCard> MyHand = new();
+    //private QuestionCard CurrentQuestion;
+    //private List<AnswerCard> MyHand = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -57,6 +57,8 @@ else
             .WithUrl("https://localhost:7060/gamehub")
             .WithAutomaticReconnect()
             .Build();
+
+
 
         // 3) Subscribe to events
         hubConnection.On<object>("GameStarted", OnGameStarted);
