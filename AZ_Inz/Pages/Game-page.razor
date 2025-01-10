@@ -1,9 +1,10 @@
-﻿@* @page "/game/{LobbyId}"
+﻿@page "/game/{LobbyId}"
 
 @using Microsoft.AspNetCore.SignalR.Client
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject CustomAuthStateProvider AuthStateProvider
+@using AZ_Inz.Classes
 
 <h2>Game ID: @LobbyId</h2>
 
@@ -36,12 +37,12 @@ else
     private HubConnection hubConnection;
     private string Nickname;
     private string CurrentQuestionPlayer;
-    //private QuestionCard CurrentQuestion;
-    //private List<AnswerCard> MyHand = new();
+    private Card CurrentQuestion;
+    private List<Card> MyHand = new();
 
     protected override async Task OnInitializedAsync()
     {
-        // 1) Get user nickname
+        //Get nickname
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity.IsAuthenticated)
         {
@@ -52,22 +53,27 @@ else
             Nickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
         }
 
-        // 2) Connect to gamehub
+        //SignalR hub connection
         hubConnection = new HubConnectionBuilder()
             .WithUrl("https://localhost:7060/gamehub")
             .WithAutomaticReconnect()
             .Build();
 
-
-
-        // 3) Subscribe to events
+        //Hub events
         hubConnection.On<object>("GameStarted", OnGameStarted);
-        hubConnection.On<string>("PlayerJoinedGame", OnPlayerJoinedGame);
-        hubConnection.On<object>("RoundUpdated", OnRoundUpdated);
 
         await hubConnection.StartAsync();
 
-        // 4) Join the game
+        /*
+         * //Fetch the lobby details
+            LobbyInfoDTO lobby = await hubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
+            if (lobby == null)
+            {
+                ErrorMessage = "Lobby not found.";
+                return;
+            }
+         */
+
         await hubConnection.SendAsync("JoinGame", LobbyId, Nickname);
     }
 
@@ -79,23 +85,13 @@ else
         StateHasChanged();
     }
 
-    private void OnPlayerJoinedGame(string newPlayer)
-    {
-        // do something like show a message
-        Console.WriteLine($"Player joined game: {newPlayer}");
-        StateHasChanged();
-    }
-
-    private void OnRoundUpdated(object data)
-    {
-        // e.g. parse new question, new hands, etc.
-    }
-
     private async Task PlayCard(int cardId)
     {
         // call "PlayCards" with a single ID or multiple
         await hubConnection.SendAsync("PlayCards", LobbyId, Nickname, new List<int> { cardId });
+
         // Remove from MyHand or wait for server "RoundUpdated"
+
     }
 }
-         *@
+        

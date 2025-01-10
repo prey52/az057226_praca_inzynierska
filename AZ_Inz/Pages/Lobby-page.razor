@@ -99,7 +99,7 @@ else
     {
         try
         {
-            //Get nickname from cookie or from auth
+            //Get nickname
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             if (authState.User.Identity.IsAuthenticated)
             {

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using Backend.Classes.DTO;
+using Microsoft.Identity.Client;
 
 namespace Backend.Classes
 {
@@ -13,8 +14,8 @@ namespace Backend.Classes
         public List<Player> Players { get; set; } = new List<Player>();
         public List<AnswerDeck> SelectedAnswersDecks { get; set; } = new List<AnswerDeck>();
         public List<QuestionDeck> SelectedQuestionsDecks { get; set; } = new List<QuestionDeck>();
-        public int ScoreToWin { get; set; } = 0;
-        public bool GameStarted { get; set; } = false;
+        public int ScoreToWin { get; set; }
+        public int AmountOfPlayers { get; set; }
     }
 
     // In-memory manager
@@ -24,7 +25,7 @@ namespace Backend.Classes
 
         public Lobby CreateLobby(string hostNickname)
         {
-            var lobby = new Lobby
+            Lobby lobby = new Lobby
             {
                 HostNickname = hostNickname
             };
@@ -40,7 +41,7 @@ namespace Backend.Classes
 
         public Lobby? GetLobby(string lobbyId)
         {
-            _lobbies.TryGetValue(lobbyId, out var lobby);
+            _lobbies.TryGetValue(lobbyId, out Lobby lobby);
             return lobby;
         }
 
@@ -48,27 +49,23 @@ namespace Backend.Classes
         {
             return _lobbies.TryRemove(lobbyId, out _);
         }
-
-        public List<Lobby> GetAllLobbies() => _lobbies.Values.ToList();
     }
 
     [AllowAnonymous]
     public class LobbyHub : Hub
     {
         private readonly LobbyManager _lobbyManager;
-        private readonly CardsDBContext _context;
 
-        public LobbyHub(LobbyManager lobbyManager, CardsDBContext context)
+        public LobbyHub(LobbyManager lobbyManager)
         {
             _lobbyManager = lobbyManager;
-            _context = context;
         }
 
         public async Task CreateLobby(string nickname)
         {
             try
             {
-                var lobby = _lobbyManager.CreateLobby(nickname);
+                Lobby lobby = _lobbyManager.CreateLobby(nickname);
 
                 await Clients.Caller.SendAsync("LobbyCreated", new CreateLobbyDTO
                 {
@@ -85,7 +82,7 @@ namespace Backend.Classes
 
         public async Task JoinLobby(string lobbyId, string nickname)
         {
-            var lobby = _lobbyManager.GetLobby(lobbyId);
+            Lobby lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
 
@@ -94,7 +91,7 @@ namespace Backend.Classes
 
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
 
-            var player = new Player
+            Player player = new Player
             {
                 Nickname = nickname
             };
@@ -113,7 +110,7 @@ namespace Backend.Classes
         public async Task<LobbyInfoDTO> GetLobbyDetails(string lobbyId)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
-            var lobby = _lobbyManager.GetLobby(lobbyId);
+            Lobby lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null)
                 throw new HubException("Lobby not found.");
 
@@ -129,15 +126,20 @@ namespace Backend.Classes
 
         public async Task StartGame(GameInfoDTO gameinfo)
         {
-
             Console.WriteLine($"Redirecting to: {gameinfo.lobbyID}");
+            Lobby lobby = _lobbyManager.GetLobby(gameinfo.lobbyID);
+
+            lobby.SelectedQuestionsDecks = gameinfo.ChosenQuestionsDecks;
+            lobby.SelectedAnswersDecks = gameinfo.ChosenAnswersDecks;
+            lobby.ScoreToWin = gameinfo.ScoreToWin;
+            lobby.AmountOfPlayers = lobby.Players.Count();
 
             await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
         }
 
         public async Task LeaveLobby(string lobbyId)
         {
-            var lobby = _lobbyManager.GetLobby(lobbyId);
+            Lobby lobby = _lobbyManager.GetLobby(lobbyId);
             if (lobby == null) return;
 
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, lobbyId);
