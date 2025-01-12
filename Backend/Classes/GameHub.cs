@@ -11,12 +11,13 @@ namespace Backend.Classes
         public int ScoreToWin { get; set; }
         public List<Player> Players { get; set; } = new List<Player>();
         public int AmountOfPlayers { get; set; }
-        public List<CardDTO> AnswerCards { get; set; }
-        public List<CardDTO> QuestionCards { get; set; }
-        public Dictionary<string, List<CardDTO>> PlayerHand { get; set; }
+        public List<AnswerCardDTO> AnswerCards { get; set; }
+        public List<QuestionCardDTO> QuestionCards { get; set; }
+        public Dictionary<string, List<AnswerCardDTO>> PlayerHand { get; set; }
         public int MaxCardsOnHand = 6;
-        public string CurrentQuestionPlayer { get; set; }
-        public CardDTO CurrentQuestion { get; set; }
+        public QuestionCardDTO CurrentQuestion { get; set; }
+        public string CurrenCardCzar { get; set; }
+        
     }
 
     public class GameManager
@@ -32,7 +33,6 @@ namespace Backend.Classes
             _scopeFactory = scopeFactory;  // Not the scoped DB context
         }
 
-
         public Game CreateGame(string lobbyId)
         {
             Lobby lobby = _lobbyManager.GetLobby(lobbyId);
@@ -42,16 +42,14 @@ namespace Backend.Classes
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CardsDBContext>();
 
-
-
-            List<CardDTO> usableAnswersDeck = new List<CardDTO>();
-            List<CardDTO> usableQuestionsDeck = new List<CardDTO>();
+            List<AnswerCardDTO> usableAnswersDeck = new List<AnswerCardDTO>();
+            List<QuestionCardDTO> usableQuestionsDeck = new List<QuestionCardDTO>();
 
             foreach (var deck in lobby.SelectedAnswersDecks)
             {
-                List<CardDTO> cards = db.AnswerCards
+                List<AnswerCardDTO> cards = db.AnswerCards
                     .Where(x => x.AnswerDeckId == deck.Id)
-                    .Select(x => new CardDTO
+                    .Select(x => new AnswerCardDTO
                     {
                         Id = x.Id,
                         Text = x.Text
@@ -62,12 +60,13 @@ namespace Backend.Classes
 
             foreach (var deck in lobby.SelectedQuestionsDecks)
             {
-                List<CardDTO> cards = db.QuestionCards
+                List<QuestionCardDTO> cards = db.QuestionCards
                     .Where(x => x.QuestionDeckId == deck.Id)
-                    .Select(x => new CardDTO
+                    .Select(x => new QuestionCardDTO
                     {
                         Id = x.Id,
-                        Text = x.Text
+                        Text = x.Text,
+                        Number = x.Number
                     }).OrderBy(_ => Guid.NewGuid()).ToList();
 
                 usableQuestionsDeck.AddRange(cards);
@@ -80,7 +79,7 @@ namespace Backend.Classes
                 AmountOfPlayers = lobby.AmountOfPlayers,
                 AnswerCards = usableAnswersDeck,
                 QuestionCards = usableQuestionsDeck,
-                PlayerHand = new Dictionary<string, List<CardDTO>>(),
+                PlayerHand = new Dictionary<string, List<AnswerCardDTO>>(),
             };
 
             _games[lobby.LobbyId] = game;
@@ -126,7 +125,6 @@ namespace Backend.Classes
             Console.WriteLine($"Game created: {lobbyId}");
             string tmpGroup = lobbyId + "sub";
             await Clients.Group(tmpGroup).SendAsync("GameplayRedirection", lobbyId);
-
         }
 
         public async Task JoinGame(string lobbyId, string nickname)
@@ -144,14 +142,13 @@ namespace Backend.Classes
 
             if (!game.PlayerHand.ContainsKey(nickname))
             {
-                game.PlayerHand[nickname] = new List<CardDTO>();
+                game.PlayerHand[nickname] = new List<AnswerCardDTO>();
             }
 
-
-            List<CardDTO> currentHand = game.PlayerHand[nickname];
+            List<AnswerCardDTO> currentHand = game.PlayerHand[nickname];
             while (currentHand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
             {
-                CardDTO nextCard = game.AnswerCards.First();
+                AnswerCardDTO nextCard = game.AnswerCards.First();
                 game.AnswerCards.RemoveAt(0);
 
                 currentHand.Add(nextCard);
@@ -160,8 +157,20 @@ namespace Backend.Classes
 
             if (game.AmountOfPlayers == game.Players.Count)
             {
-                await Clients.Group(lobbyId).SendAsync("StartGame", "ok");
+                GetGameInfo(lobbyId);
             }
+        }
+
+        public async Task<GameInfoDTO> GetGameInfo(string gameId)
+        {
+            Game game = _gameManager.GetGame(gameId);
+            GameInfoDTO gameInfo = new GameInfoDTO()
+            {
+                Players = game.Players.OrderBy(p => p.Nickname).ToList(),
+                CardCzar = game.CurrenCardCzar,
+                CurrentQuestionCard = game.CurrentQuestion
+            };
+            return gameInfo;
         }
     }
 }

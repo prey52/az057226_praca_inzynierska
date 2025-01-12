@@ -123,7 +123,7 @@ namespace Backend.Classes
             return lobbyInfo;
         }
 
-        public async Task SaveSettings(GameInfoDTO gameinfo)
+        public async Task SaveSettings(GameSettingsDTO gameinfo)
         {
             Console.WriteLine($"Saving settings: {gameinfo.lobbyID}");
             Lobby lobby = _lobbyManager.GetLobby(gameinfo.lobbyID);

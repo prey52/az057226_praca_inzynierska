@@ -1,12 +1,9 @@
-﻿using Backend.Classes.Database;
-
-namespace Backend.Classes.DTO
+﻿namespace Backend.Classes.DTO
 {
     public class GameInfoDTO
     {
-        public string lobbyID {  get; set; }
-        public int ScoreToWin { get; set; }
-        public List<AnswerDeckDTO> ChosenAnswersDecks {  get; set; }
-        public List<QuestionDeckDTO> ChosenQuestionsDecks {  get; set; }
+        public List<Player> Players { get; set; }
+        public string CardCzar { get; set; }
+        public QuestionCardDTO CurrentQuestionCard { get; set; }
     }
 }

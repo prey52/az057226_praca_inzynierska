@@ -140,7 +140,6 @@ else
     {
         ErrorMessage = string.Empty;
 
-        // If user is anonymous, require a nickname
         if (!_isAuthenticated && string.IsNullOrWhiteSpace(Nickname))
         {
             ErrorMessage = "Nickname is required for unauthenticated users to join a lobby.";
@@ -152,8 +151,13 @@ else
             return;
         }
 
-        // Decide a name to display
         var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
+
+        // Save the nickname to a cookie for unauthenticated users
+        if (!_isAuthenticated)
+        {
+            await JS.InvokeVoidAsync("cookieManager.setCookie", "nickname", Nickname, 1);
+        }
 
         Console.WriteLine($"Joining lobby with Nickname = {nameToUse}");
 

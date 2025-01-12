@@ -8,6 +8,7 @@
 @using AZ_Inz.Classes.DTO
 
 <h2>Game ID: @GameId</h2>
+<h2>My nick: @myNickname</h2>
 
 @if (gameHubConnection is null || gameHubConnection.State != HubConnectionState.Connected)
 {
@@ -15,8 +16,20 @@
 }
 else
 {
-    <h3>Question Player: @CurrentQuestionPlayer</h3>
+    <h3>Question Player: @CurrentCardCzar</h3>
     <h4>@CurrentQuestion?.Text</h4>
+
+    <div>
+        <h4>Players:</h4>
+        <ul>
+            @foreach (var player in Players)
+            {
+                <li>
+                    @player.Nickname: @player.Score
+                </li>
+            }
+        </ul>
+    </div>
 
     <div>
         <h4>Your Hand</h4>
@@ -36,10 +49,15 @@ else
     [Parameter] public string GameId { get; set; }
 
     private HubConnection gameHubConnection;
-    private string Nickname;
-    private string CurrentQuestionPlayer;
-    private CardDTO CurrentQuestion;
-    private List<CardDTO> MyHand = new();
+
+    private string myNickname;
+
+    private QuestionCardDTO CurrentQuestion;
+    private List<Player> Players = new();
+    private string CurrentCardCzar;
+
+    private bool IsCardCzar;
+    private List<AnswerCardDTO> MyHand = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,11 +65,11 @@ else
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity.IsAuthenticated)
         {
-            Nickname = authState.User.Identity.Name;
+            myNickname = authState.User.Identity.Name;
         }
         else
         {
-            Nickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
+            myNickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
         }
 
         //SignalR hub connection
@@ -61,36 +79,39 @@ else
             .Build();
 
         //Hub events
-        gameHubConnection.On<List<CardDTO>>("ReceiveHand", OnReceiveHand);
-        gameHubConnection.On<string>("StartGame", OnStartGame);
+        gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
+        {
+            MyHand = hand;
+            StateHasChanged(); //
+        });
+        gameHubConnection.On<string>("PlayRound", OnPlayRound);
 
 
         await gameHubConnection.StartAsync();
 
-        await gameHubConnection.SendAsync("JoinGame", GameId, Nickname);
+        await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);
+        OnPlayRound(GameId);
     }
 
-    private void OnStartGame(string data)
+    public async Task OnPlayRound(string data)
     {
-        StateHasChanged(); 
-    }
-
-    private void OnReceiveHand(List<CardDTO> hand)
-    {
-        Console.WriteLine("test: hand");
-        foreach(var card in hand)
+        GameInfoDTO gameInfo = await gameHubConnection.InvokeAsync<GameInfoDTO>("GetGameInfo", GameId);
+        CurrentQuestion = gameInfo.CurrentQuestionCard;
+        Players = gameInfo.Players;
+        CurrentCardCzar = gameInfo.CardCzar;
+        if (CurrentCardCzar == myNickname)
         {
-            Console.WriteLine(card.Text);
+            IsCardCzar = true;
         }
-        
-        MyHand = hand;
+        else IsCardCzar = false;
+
         StateHasChanged();
     }
 
     private async Task PlayCard(int cardId)
     {
         // call "PlayCards" with a single ID or multiple
-        await gameHubConnection.SendAsync("PlayCards", GameId, Nickname, new List<int> { cardId });
+        await gameHubConnection.SendAsync("PlayCards", GameId, myNickname, new List<int> { cardId });
 
         // Remove from MyHand or wait for server "RoundUpdated"
 
