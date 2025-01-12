@@ -13,70 +13,70 @@
 
 @if (!string.IsNullOrEmpty(ErrorMessage))
 {
-        <p style="color:red;">@ErrorMessage</p>
+    <p style="color:red;">@ErrorMessage</p>
 }
 
 @if (lobbyHubConnection is null || lobbyHubConnection.State != HubConnectionState.Connected)
 {
-        <p>Connecting to the lobby...</p>
+    <p>Connecting to the lobby...</p>
 }
 else
 {
-        <h3>Players in Lobby</h3>
-        <ul>
+    <h3>Players in Lobby</h3>
+    <ul>
         @foreach (var player in Players)
         {
-                    <li>@player.Nickname</li>
+            <li>@player.Nickname</li>
         }
-        </ul>
+    </ul>
 
     @if (IsHost)
     {
-                <h3>Lobby Settings (Host Only)</h3>
+        <h3>Lobby Settings (Host Only)</h3>
 
-                <div>
-                    <label>Score to Win: </label>
-                    <input type="number" @bind="ScoreToWin"/>
-                </div>
+        <div>
+            <label>Score to Win: </label>
+            <input type="number" @bind="ScoreToWin" />
+        </div>
 
-                <h4>Answer Decks</h4>
+        <h4>Answer Decks</h4>
         @if (AllAnswerDecks is null)
         {
-                        <p>Loading answer decks...</p>
+            <p>Loading answer decks...</p>
         }
         else
         {
             @foreach (var deck in AllAnswerDecks)
             {
-                                <div>
-                                    <input type="checkbox"
-                                           @bind="deck.IsSelected" />
-                                    <label>@deck.Name</label>
-                                </div>
+                <div>
+                    <input type="checkbox"
+                           @bind="deck.IsSelected" />
+                    <label>@deck.Name</label>
+                </div>
             }
         }
 
-                <h4>Question Decks</h4>
+        <h4>Question Decks</h4>
         @if (AllQuestionDecks is null)
         {
-                        <p>Loading question decks...</p>
+            <p>Loading question decks...</p>
         }
         else
         {
             @foreach (var deck in AllQuestionDecks)
             {
-                                <div>
-                                    <input type="checkbox"
-                                           @bind="deck.IsSelected" />
-                                    <label>@deck.Name</label>
-                                </div>
+                <div>
+                    <input type="checkbox"
+                           @bind="deck.IsSelected" />
+                    <label>@deck.Name</label>
+                </div>
             }
         }
-                <button @onclick="StartGame">Start Game</button>
+        <button @onclick="StartGame">Start Game</button>
     }
     else
     {
-                <p>Waiting for the host to select decks and start the game...</p>
+        <p>Waiting for the host to select decks and start the game...</p>
     }
 }
 
@@ -119,9 +119,20 @@ else
 
             //Hub events
             lobbyHubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
-            lobbyHubConnection.On<string>("GameplayRedirection", OnGameplayRedirection);
+            lobbyHubConnection.On<string>("CreateGameTrigger", OnCreateGameTrigger);
 
             await lobbyHubConnection.StartAsync();
+
+            gameHubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:7060/gamehub")
+            .WithAutomaticReconnect()
+            .Build();
+            gameHubConnection.On<string>("GameplayRedirection", OnGameplayRedirection);
+
+
+            await gameHubConnection.StartAsync();
+            await gameHubConnection.SendAsync("JoinToGameGroup", LobbyId);
+
 
             //Fetch the lobby details
             LobbyInfoDTO lobby = await lobbyHubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
@@ -192,38 +203,31 @@ else
                 .ToList();
 
             GameInfoDTO gameInfo = new()
-            {
-                lobbyID = LobbyId,
-                ScoreToWin = ScoreToWin,
-                ChosenAnswersDecks = chosenAnswerDecks,
-                ChosenQuestionsDecks = chosenQuestionDecks
-            };
+                {
+                    lobbyID = LobbyId,
+                    ScoreToWin = ScoreToWin,
+                    ChosenAnswersDecks = chosenAnswerDecks,
+                    ChosenQuestionsDecks = chosenQuestionDecks
+                };
 
             Console.WriteLine("Starting the game");
-            await lobbyHubConnection.SendAsync("StartGame", gameInfo);
-            await CreateGame(LobbyId);
-            Navigation.NavigateTo($"/game/{LobbyId}");
+            await lobbyHubConnection.SendAsync("SaveSettings", gameInfo);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Could not save lobby options: {ex.Message}";
         }
+
+    }
+
+    private async Task OnCreateGameTrigger(string msg)
+    {
+        await gameHubConnection.SendAsync("CreateGame", LobbyId);
     }
 
     private async Task OnGameplayRedirection(string gameId)
     {
         Navigation.NavigateTo($"/game/{gameId}");
-    }
-
-    private async Task CreateGame(string lobbyId)
-    {
-        gameHubConnection = new HubConnectionBuilder()
-            .WithUrl("https://localhost:7060/gamehub")
-            .WithAutomaticReconnect()
-            .Build();
-
-        await gameHubConnection.StartAsync();
-        await gameHubConnection.SendAsync("CreateGame", lobbyId);
     }
 
     public async ValueTask DisposeAsync()

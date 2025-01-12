@@ -123,17 +123,16 @@ namespace Backend.Classes
             return lobbyInfo;
         }
 
-        public async Task StartGame(GameInfoDTO gameinfo)
+        public async Task SaveSettings(GameInfoDTO gameinfo)
         {
-            Console.WriteLine($"Redirecting to: {gameinfo.lobbyID}");
+            Console.WriteLine($"Saving settings: {gameinfo.lobbyID}");
             Lobby lobby = _lobbyManager.GetLobby(gameinfo.lobbyID);
 
             lobby.SelectedQuestionsDecks = gameinfo.ChosenQuestionsDecks;
             lobby.SelectedAnswersDecks = gameinfo.ChosenAnswersDecks;
             lobby.ScoreToWin = gameinfo.ScoreToWin;
             lobby.AmountOfPlayers = lobby.Players.Count();
-
-            //await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
+            await Clients.Caller.SendAsync("CreateGameTrigger", "ok");
         }
 
         public async Task LeaveLobby(string lobbyId)

@@ -104,8 +104,16 @@ namespace Backend.Classes
             _gameManager = gameStateManager;
         }
 
+        public async Task JoinToGameGroup(string lobbyId)
+        {
+            string tmpGroup = lobbyId + "sub";
+            Console.WriteLine(tmpGroup);
+            await Groups.AddToGroupAsync(Context.ConnectionId, tmpGroup);
+        }
+
         public async Task CreateGame(string lobbyId)
         {
+            Console.WriteLine($"Creating a game: {lobbyId}");
             try
             {
                 Game game = _gameManager.CreateGame(lobbyId);
@@ -115,6 +123,10 @@ namespace Backend.Classes
                 Console.WriteLine("CreateLobby error: " + ex.Message);
                 throw;
             }
+            Console.WriteLine($"Game created: {lobbyId}");
+            string tmpGroup = lobbyId + "sub";
+            await Clients.Group(tmpGroup).SendAsync("GameplayRedirection", lobbyId);
+
         }
 
         public async Task JoinGame(string lobbyId, string nickname)
