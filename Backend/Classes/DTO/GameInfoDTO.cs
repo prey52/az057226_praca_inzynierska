@@ -6,7 +6,7 @@ namespace Backend.Classes.DTO
     {
         public string lobbyID {  get; set; }
         public int ScoreToWin { get; set; }
-        public List<AnswerDeck> ChosenAnswersDecks {  get; set; }
-        public List<QuestionDeck> ChosenQuestionsDecks {  get; set; }
+        public List<AnswerDeckDTO> ChosenAnswersDecks {  get; set; }
+        public List<QuestionDeckDTO> ChosenQuestionsDecks {  get; set; }
     }
 }

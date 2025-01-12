@@ -1,6 +1,6 @@
-﻿namespace AZ_Inz.Classes
+﻿namespace AZ_Inz.Classes.DTO
 {
-    public class Card
+    public class CardDTO
     {
         public int Id { get; set; }
         public string Text { get; set; }

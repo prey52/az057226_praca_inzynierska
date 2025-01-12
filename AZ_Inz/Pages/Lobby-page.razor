@@ -16,7 +16,7 @@
         <p style="color:red;">@ErrorMessage</p>
 }
 
-@if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
+@if (lobbyHubConnection is null || lobbyHubConnection.State != HubConnectionState.Connected)
 {
         <p>Connecting to the lobby...</p>
 }
@@ -36,7 +36,7 @@ else
 
                 <div>
                     <label>Score to Win: </label>
-                    <input type="number" @bind="ScoreToWin" />
+                    <input type="number" @bind="ScoreToWin"/>
                 </div>
 
                 <h4>Answer Decks</h4>
@@ -84,14 +84,15 @@ else
     [Parameter] public string LobbyId { get; set; }
 
     private bool isLoading = true;
-    private HubConnection hubConnection;
+    private HubConnection lobbyHubConnection;
+    private HubConnection gameHubConnection;
     private string ErrorMessage;
 
     private List<Player> Players = new();
     private bool IsHost = false;
     private string myNickname;
 
-    private int ScoreToWin;
+    private int ScoreToWin = 5;
     private List<AnswerDeckViewModel> AllAnswerDecks;
     private List<QuestionDeckViewModel> AllQuestionDecks;
 
@@ -111,19 +112,19 @@ else
             }
 
             //SignalR hub connection
-            hubConnection = new HubConnectionBuilder()
+            lobbyHubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
             //Hub events
-            hubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
-            hubConnection.On<string>("GameplayRedirection", OnGameplayRedirection);
+            lobbyHubConnection.On<Player>("PlayerJoined", OnPlayerJoined);
+            lobbyHubConnection.On<string>("GameplayRedirection", OnGameplayRedirection);
 
-            await hubConnection.StartAsync();
+            await lobbyHubConnection.StartAsync();
 
             //Fetch the lobby details
-            LobbyInfoDTO lobby = await hubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
+            LobbyInfoDTO lobby = await lobbyHubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
             if (lobby == null)
             {
                 ErrorMessage = "Lobby not found.";
@@ -172,26 +173,36 @@ else
     {
         try
         {
-            var chosenAnswerDeckIds = AllAnswerDecks
-                .Where(d => d.IsSelected)
-                .Select(d => d.Id)
-                .ToList();
+            List<AnswerDeckDTO> chosenAnswerDecks = AllAnswerDecks
+            .Where(d => d.IsSelected)
+            .Select(d => new AnswerDeckDTO
+                {
+                    Id = d.Id,
+                    Name = d.Name
+                })
+            .ToList();
 
-            var chosenQuestionDeckIds = AllQuestionDecks
-                .Where(d => d.IsSelected)
-                .Select(d => d.Id)
+
+            List<QuestionDeckDTO> chosenQuestionDecks = AllQuestionDecks
+                .Select(d => new QuestionDeckDTO
+                    {
+                        Id = d.Id,
+                        Name = d.Name
+                    })
                 .ToList();
 
             GameInfoDTO gameInfo = new()
             {
                 lobbyID = LobbyId,
                 ScoreToWin = ScoreToWin,
-                ChosenAnswersDecks = chosenAnswerDeckIds,
-                ChosenQuestionsDecks = chosenQuestionDeckIds
+                ChosenAnswersDecks = chosenAnswerDecks,
+                ChosenQuestionsDecks = chosenQuestionDecks
             };
 
             Console.WriteLine("Starting the game");
-            await hubConnection.SendAsync("StartGame", gameInfo);
+            await lobbyHubConnection.SendAsync("StartGame", gameInfo);
+            await CreateGame(LobbyId);
+            Navigation.NavigateTo($"/game/{LobbyId}");
         }
         catch (Exception ex)
         {
@@ -201,14 +212,25 @@ else
 
     private async Task OnGameplayRedirection(string gameId)
     {
-            Navigation.NavigateTo($"/game/{gameId}");
+        Navigation.NavigateTo($"/game/{gameId}");
+    }
+
+    private async Task CreateGame(string lobbyId)
+    {
+        gameHubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:7060/gamehub")
+            .WithAutomaticReconnect()
+            .Build();
+
+        await gameHubConnection.StartAsync();
+        await gameHubConnection.SendAsync("CreateGame", lobbyId);
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (hubConnection != null)
+        if (lobbyHubConnection != null)
         {
-            await hubConnection.DisposeAsync();
+            await lobbyHubConnection.DisposeAsync();
         }
     }
 }

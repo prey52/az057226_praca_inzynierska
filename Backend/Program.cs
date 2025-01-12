@@ -36,8 +36,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"], //weird, but it works
-        ValidAudience = builder.Configuration["Jwt:Issuer"], //read about it later
+        ValidIssuer = builder.Configuration["Jwt:Issuer"], //
+        ValidAudience = builder.Configuration["Jwt:Issuer"], //
         IssuerSigningKey = new SymmetricSecurityKey(
             System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
@@ -74,7 +74,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<LobbyManager>();
-builder.Services.AddSingleton<GameStateManager>();
+//builder.Services.AddSingleton<GameManager>();
+builder.Services.AddSingleton<GameManager>();
 
 
 var app = builder.Build();

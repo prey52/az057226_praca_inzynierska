@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using Backend.Classes.DTO;
-using Microsoft.Identity.Client;
 
 namespace Backend.Classes
 {
@@ -12,10 +11,10 @@ namespace Backend.Classes
         public string LobbyId { get; set; } = Guid.NewGuid().ToString();
         public string HostNickname { get; set; }
         public List<Player> Players { get; set; } = new List<Player>();
-        public List<AnswerDeck> SelectedAnswersDecks { get; set; } = new List<AnswerDeck>();
-        public List<QuestionDeck> SelectedQuestionsDecks { get; set; } = new List<QuestionDeck>();
-        public int ScoreToWin { get; set; }
         public int AmountOfPlayers { get; set; }
+        public List<AnswerDeckDTO> SelectedAnswersDecks { get; set; } = new List<AnswerDeckDTO>();
+        public List<QuestionDeckDTO> SelectedQuestionsDecks { get; set; } = new List<QuestionDeckDTO>();
+        public int ScoreToWin { get; set; }
     }
 
     // In-memory manager
@@ -101,7 +100,7 @@ namespace Backend.Classes
             await Clients.Caller.SendAsync("JoinedLobby", new
             {
                 LobbyId = lobby.LobbyId,
-                Players = lobby.Players, //list
+                Players = lobby.Players,
             });
 
             await Clients.OthersInGroup(lobbyId).SendAsync("PlayerJoined", player);
@@ -134,7 +133,7 @@ namespace Backend.Classes
             lobby.ScoreToWin = gameinfo.ScoreToWin;
             lobby.AmountOfPlayers = lobby.Players.Count();
 
-            await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
+            //await Clients.Group(gameinfo.lobbyID).SendAsync("GameplayRedirection", gameinfo.lobbyID);
         }
 
         public async Task LeaveLobby(string lobbyId)

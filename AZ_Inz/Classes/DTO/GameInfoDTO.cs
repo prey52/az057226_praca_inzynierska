@@ -4,7 +4,7 @@
     {
         public string lobbyID {  get; set; }
         public int ScoreToWin { get; set; }
-        public List<int> ChosenAnswersDecks {  get; set; }
-        public List<int> ChosenQuestionsDecks {  get; set; }
+        public List<AnswerDeckDTO> ChosenAnswersDecks {  get; set; }
+        public List<QuestionDeckDTO> ChosenQuestionsDecks {  get; set; }
     }
 }

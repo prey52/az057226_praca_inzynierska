@@ -1,14 +1,15 @@
-﻿@page "/game/{LobbyId}"
+﻿@page "/game/{GameId}"
 
 @using Microsoft.AspNetCore.SignalR.Client
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject CustomAuthStateProvider AuthStateProvider
 @using AZ_Inz.Classes
+@using AZ_Inz.Classes.DTO
 
-<h2>Game ID: @LobbyId</h2>
+<h2>Game ID: @GameId</h2>
 
-@if (hubConnection is null || hubConnection.State != HubConnectionState.Connected)
+@if (gameHubConnection is null || gameHubConnection.State != HubConnectionState.Connected)
 {
     <p>Connecting to the game...</p>
 }
@@ -32,13 +33,13 @@ else
 }
 
 @code {
-    [Parameter] public string LobbyId { get; set; }
+    [Parameter] public string GameId { get; set; }
 
-    private HubConnection hubConnection;
+    private HubConnection gameHubConnection;
     private string Nickname;
     private string CurrentQuestionPlayer;
-    private Card CurrentQuestion;
-    private List<Card> MyHand = new();
+    private CardDTO CurrentQuestion;
+    private List<CardDTO> MyHand = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -54,41 +55,42 @@ else
         }
 
         //SignalR hub connection
-        hubConnection = new HubConnectionBuilder()
+        gameHubConnection = new HubConnectionBuilder()
             .WithUrl("https://localhost:7060/gamehub")
             .WithAutomaticReconnect()
             .Build();
 
         //Hub events
-        hubConnection.On<object>("GameStarted", OnGameStarted);
+        gameHubConnection.On<List<CardDTO>>("ReceiveHand", OnReceiveHand);
+        gameHubConnection.On<string>("StartGame", OnStartGame);
 
-        await hubConnection.StartAsync();
 
-        /*
-         * //Fetch the lobby details
-            LobbyInfoDTO lobby = await hubConnection.InvokeAsync<LobbyInfoDTO>("GetLobbyDetails", LobbyId);
-            if (lobby == null)
-            {
-                ErrorMessage = "Lobby not found.";
-                return;
-            }
-         */
+        await gameHubConnection.StartAsync();
 
-        await hubConnection.SendAsync("JoinGame", LobbyId, Nickname);
+        await gameHubConnection.SendAsync("JoinGame", GameId, Nickname);
     }
 
-    private void OnGameStarted(object data)
+    private void OnStartGame(string data)
     {
-        // parse or strongly-type
-        // Possibly set CurrentQuestion, ScoreToWin, etc.
-        Console.WriteLine("Game started!");
+        StateHasChanged(); 
+    }
+
+    private void OnReceiveHand(List<CardDTO> hand)
+    {
+        Console.WriteLine("test: hand");
+        foreach(var card in hand)
+        {
+            Console.WriteLine(card.Text);
+        }
+        
+        MyHand = hand;
         StateHasChanged();
     }
 
     private async Task PlayCard(int cardId)
     {
         // call "PlayCards" with a single ID or multiple
-        await hubConnection.SendAsync("PlayCards", LobbyId, Nickname, new List<int> { cardId });
+        await gameHubConnection.SendAsync("PlayCards", GameId, Nickname, new List<int> { cardId });
 
         // Remove from MyHand or wait for server "RoundUpdated"
 
