@@ -2,7 +2,10 @@
 using Backend.Classes.DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+
 
 namespace Backend.Classes
 {
@@ -17,7 +20,6 @@ namespace Backend.Classes
         public int MaxCardsOnHand = 6;
         public QuestionCardDTO CurrentQuestion { get; set; }
         public string CurrenCardCzar { get; set; }
-        
     }
 
     public class GameManager
@@ -75,12 +77,17 @@ namespace Backend.Classes
             Game game = new Game
             {
                 ScoreToWin = lobby.ScoreToWin,
-                Players = lobby.Players,
+                Players = lobby.Players.OrderBy(p => p.Nickname).ToList(),
                 AmountOfPlayers = lobby.AmountOfPlayers,
                 AnswerCards = usableAnswersDeck,
                 QuestionCards = usableQuestionsDeck,
                 PlayerHand = new Dictionary<string, List<AnswerCardDTO>>(),
             };
+
+            game.CurrentQuestion = game.QuestionCards.First();
+            var random = new Random();
+            game.CurrenCardCzar = game.Players[random.Next(game.Players.Count)].Nickname;
+
 
             _games[lobby.LobbyId] = game;
             return game;
@@ -166,11 +173,57 @@ namespace Backend.Classes
             Game game = _gameManager.GetGame(gameId);
             GameInfoDTO gameInfo = new GameInfoDTO()
             {
-                Players = game.Players.OrderBy(p => p.Nickname).ToList(),
+                Players = game.Players,
                 CardCzar = game.CurrenCardCzar,
                 CurrentQuestionCard = game.CurrentQuestion
             };
             return gameInfo;
         }
+
+        public async Task<PlayedCardsDTO> CardsPlayed(string gameId, string nickname, List<int> cards)
+        {
+            //tmp code
+            PlayedCardsDTO dto = new();
+            return dto;
+        }
+
+        public async Task StartNextRound(string lobbyId)
+        {
+            var game = _gameManager.GetGame(lobbyId);
+            if (game == null)
+                throw new HubException("Game not found.");
+
+            // 1) Rotate card czar
+            // find the current czar's index
+            var players = game.Players;
+            int currentCzarIndex = players.FindIndex(p => p.Nickname == game.CurrenCardCzar);
+            if (currentCzarIndex == -1)
+            {
+                // fallback: maybe pick index=0 if not found
+                currentCzarIndex = 0;
+            }
+            // next index
+            int nextIndex = (currentCzarIndex + 1) % players.Count;
+            game.CurrenCardCzar = players[nextIndex].Nickname;
+
+            // 2) Draw the next question card
+            if (game.QuestionCards.Any())
+            {
+                game.CurrentQuestion = game.QuestionCards.First();
+                game.QuestionCards.RemoveAt(0);
+            }
+            else
+            {
+                // handle "out of question cards" scenario
+            }
+
+            // 3) Broadcast updated info to all players
+            await Clients.Group(lobbyId).SendAsync("RoundStarted", new
+            {
+                CardCzar = game.CurrenCardCzar,
+                Question = game.CurrentQuestion
+            });
+        }
+
     }
 }

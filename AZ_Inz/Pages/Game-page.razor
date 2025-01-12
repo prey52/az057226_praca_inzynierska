@@ -58,6 +58,7 @@ else
 
     private bool IsCardCzar;
     private List<AnswerCardDTO> MyHand = new();
+    private List<PlayedCardsDTO> playedCards = new (); //list containing nickname and List<AnswerCardDTO>
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,7 +87,6 @@ else
         });
         gameHubConnection.On<string>("PlayRound", OnPlayRound);
 
-
         await gameHubConnection.StartAsync();
 
         await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);
@@ -110,11 +110,6 @@ else
 
     private async Task PlayCard(int cardId)
     {
-        // call "PlayCards" with a single ID or multiple
-        await gameHubConnection.SendAsync("PlayCards", GameId, myNickname, new List<int> { cardId });
-
-        // Remove from MyHand or wait for server "RoundUpdated"
-
+        await gameHubConnection.SendAsync("CardsPlayed", GameId, myNickname, new List<int> { cardId });
     }
 }
-        
