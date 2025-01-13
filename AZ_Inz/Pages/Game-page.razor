@@ -32,28 +32,34 @@ else
 	<div>
 		<h4>My Hand</h4>
 
-		@if (IsCardCzar)
+		@if (isGameOver)
 		{
-			<p>You are the card czar. You cannot play any answers this round.</p>
-		}
-		else if (playedCount >= (CurrentQuestion?.Number ?? 1))
-		{
-			<p>You have already played the required number of cards for this question.</p>
+			<p style="color: red;">GAME OVER.</p>
 		}
 		else
 		{
-			<p>
-				You must play @((CurrentQuestion?.Number ?? 1) - playedCount) more card(s)
-				for this question.
-			</p>
-		}
+			<!-- existing UI -->
+			@if (IsCardCzar)
+			{
+				<p>You are the card czar. You cannot play any answers this round.</p>
+			}
+			else if (playedCount >= (CurrentQuestion?.Number ?? 1))
+			{
+				<p>You have already played the required number of cards for this question.</p>
+			}
+			else
+			{
+				<p> You must play @((CurrentQuestion?.Number ?? 1) - playedCount) more card(s). </p>
+			}
 
-		@foreach (var card in MyHand)
-		{
-			<button @onclick="() => PlaySingleCard(card.Id)"
-					disabled="@(IsCardCzar || playedCount >= (CurrentQuestion?.Number ?? 1))">
-				@card.Text
-			</button>
+			@foreach (var card in MyHand)
+			{
+				<button @onclick="() => PlaySingleCard(card.Id)"
+						disabled="@(IsCardCzar ||
+                            playedCount >= (CurrentQuestion?.Number ?? 1))">
+					@card.Text
+				</button>
+			}
 		}
 	</div>
 
@@ -81,6 +87,7 @@ else
 @code {
 	[Parameter] public string GameId { get; set; }
 
+
 	private HubConnection gameHubConnection;
 
 	private string myNickname;
@@ -92,6 +99,8 @@ else
 	private List<AnswerCardDTO> MyHand = new();
 
 	private int playedCount = 0;
+	private bool isGameOver = false; // NEW
+
 
 	// *** 1) Store the "all answers" info here.
 	// *** This fixes "The name 'AllAnswersInList' does not exist in the current context"
@@ -147,6 +156,15 @@ else
 			Console.WriteLine("Received RoundStarted => RefreshFullGameState");
 			await RefreshFullGameState();
 		});
+
+		gameHubConnection.On<object>("GameOver", data =>
+		{
+			// The server might pass Winner in data, but let’s just store a bool
+			isGameOver = true;
+			Console.WriteLine("GameOver => Disabling UI. The winner is: " + data);
+			StateHasChanged();
+		});
+
 
 		await gameHubConnection.StartAsync();
 		await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);

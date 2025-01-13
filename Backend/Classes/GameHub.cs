@@ -27,14 +27,25 @@ namespace Backend.Classes
 		public int ScoreToWin { get; set; }
 		public List<Player> Players { get; set; } = new List<Player>();
 		public int AmountOfPlayers { get; set; }
+
+		// The "live" decks we’re pulling from each round
 		public List<AnswerCardDTO> AnswerCards { get; set; }
 		public List<QuestionCardDTO> QuestionCards { get; set; }
+
+		// NEW: The original (full) decks, so we can reload if we run out
+		public List<AnswerCardDTO> OriginalAnswersDeck { get; set; }
+		public List<QuestionCardDTO> OriginalQuestionsDeck { get; set; }
+
 		public Dictionary<string, List<AnswerCardDTO>> PlayerHand { get; set; }
 		public int MaxCardsOnHand = 6;
 		public QuestionCardDTO CurrentQuestion { get; set; }
 		public string CurrenCardCzar { get; set; }
 		public RoundData CurrentRound { get; set; } = new RoundData();
+
+		// NEW: If you want to mark it ended
+		public bool IsFinished { get; set; } = false;
 	}
+
 
 	public class GameManager
 	{
@@ -57,7 +68,6 @@ namespace Backend.Classes
 			using var scope = _scopeFactory.CreateScope();
 			var db = scope.ServiceProvider.GetRequiredService<CardsDBContext>();
 
-			// Build up the decks
 			var usableAnswersDeck = new List<AnswerCardDTO>();
 			var usableQuestionsDeck = new List<QuestionCardDTO>();
 
@@ -95,12 +105,22 @@ namespace Backend.Classes
 				ScoreToWin = lobby.ScoreToWin,
 				Players = lobby.Players.OrderBy(p => p.Nickname).ToList(),
 				AmountOfPlayers = lobby.AmountOfPlayers,
+
+				// Live decks
 				AnswerCards = usableAnswersDeck,
 				QuestionCards = usableQuestionsDeck,
+
+				// NEW: store the "original" decks for later reload
+				OriginalAnswersDeck = new List<AnswerCardDTO>(usableAnswersDeck),
+				OriginalQuestionsDeck = new List<QuestionCardDTO>(usableQuestionsDeck),
+
 				PlayerHand = new Dictionary<string, List<AnswerCardDTO>>()
 			};
 
+			// pick a random question
 			game.CurrentQuestion = game.QuestionCards.First();
+			game.QuestionCards.RemoveAt(0);
+
 			var random = new Random();
 			game.CurrenCardCzar = game.Players[random.Next(game.Players.Count)].Nickname;
 
@@ -113,6 +133,12 @@ namespace Backend.Classes
 			_games.TryGetValue(lobbyId, out var state);
 			return state;
 		}
+
+		public bool RemoveGame(string lobbyId)
+		{
+			return _games.TryRemove(lobbyId, out _);
+		}
+
 	}
 
 	[AllowAnonymous]
@@ -305,7 +331,11 @@ namespace Backend.Classes
 			}
 		}
 
-		public async Task ChooseWinner(string gameId, string czarNickname, string winnerNickname, List<int> winningCards)
+		public async Task ChooseWinner(
+	string gameId,
+	string czarNickname,
+	string winnerNickname,
+	List<int> winningCards)
 		{
 			var game = _gameManager.GetGame(gameId);
 			if (game == null)
@@ -318,11 +348,41 @@ namespace Backend.Classes
 			if (winnerPlayer == null)
 				throw new HubException("Winner not found in game.");
 
+			// Increase the winner’s score
 			winnerPlayer.Score += 1;
 
+			// Check ScoreToWin if > 0
+			if (game.ScoreToWin > 0 && winnerPlayer.Score >= game.ScoreToWin)
+			{
+				// Mark the game as ended
+				game.IsFinished = true;
+
+				// Option A: Mark the winner’s Score so it says "winner" in UI 
+				// but your 'Score' is int, so we can set to 9999 or something 
+				// or rely on a separate UI check. 
+				winnerPlayer.Score = 9999;
+
+				// Broadcast game over
+				await Clients.Group(gameId).SendAsync("GameOver", new
+				{
+					Winner = winnerNickname
+				});
+
+				// Remove the game from memory so it can’t be used anymore
+				_gameManager.RemoveGame(gameId);
+
+				// No new round => return
+				return;
+			}
+
+			// Otherwise, continue the game
+			// 1) Refill everyone’s hand
 			FillHands(game);
+
+			// 2) Start next round => rotate czar, pick new question card
 			await StartNextRound(gameId);
 
+			// 3) Broadcast "WinnerChosen"
 			await Clients.Group(gameId).SendAsync("WinnerChosen", new
 			{
 				Winner = winnerNickname,
@@ -330,12 +390,20 @@ namespace Backend.Classes
 			});
 		}
 
+
 		private void FillHands(Game game)
 		{
 			foreach (var player in game.Players)
 			{
 				var nickname = player.Nickname;
 				var hand = game.PlayerHand[nickname];
+
+				// If we’re about to run out of answer cards, reload them
+				if (game.AnswerCards.Count < (game.MaxCardsOnHand - hand.Count))
+				{
+					ReloadAnswerDeck(game);  // NEW
+				}
+
 				while (hand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
 				{
 					var nextCard = game.AnswerCards.First();
@@ -345,11 +413,15 @@ namespace Backend.Classes
 			}
 		}
 
+
 		public async Task StartNextRound(string lobbyId)
 		{
 			var game = _gameManager.GetGame(lobbyId);
 			if (game == null)
 				throw new HubException("Game not found.");
+
+			// If the game is flagged finished, do nothing
+			if (game.IsFinished) return;  // NEW
 
 			var players = game.Players;
 			int currentCzarIndex = players.FindIndex(p => p.Nickname == game.CurrenCardCzar);
@@ -359,15 +431,40 @@ namespace Backend.Classes
 			int nextIndex = (currentCzarIndex + 1) % players.Count;
 			game.CurrenCardCzar = players[nextIndex].Nickname;
 
+			// If no question cards left, reload them
+			if (!game.QuestionCards.Any())
+			{
+				ReloadQuestionDeck(game); // NEW
+			}
+
+			// pick the next question
 			if (game.QuestionCards.Any())
 			{
 				game.CurrentQuestion = game.QuestionCards.First();
 				game.QuestionCards.RemoveAt(0);
 			}
 
+			// reset
 			game.CurrentRound = new RoundData();
+
 			// broadcast "RoundStarted"
 			await Clients.Group(lobbyId).SendAsync("RoundStarted");
 		}
+
+		private void ReloadAnswerDeck(Game game)
+		{
+			// Re-shuffle the original answers
+			game.AnswerCards = game.OriginalAnswersDeck
+				.OrderBy(_ => Guid.NewGuid())
+				.ToList();
+		}
+
+		private void ReloadQuestionDeck(Game game)
+		{
+			game.QuestionCards = game.OriginalQuestionsDeck
+				.OrderBy(_ => Guid.NewGuid())
+				.ToList();
+		}
+
 	}
 }
