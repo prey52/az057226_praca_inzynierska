@@ -121,55 +121,58 @@ else
 			StateHasChanged();
 		});
 
-		gameHubConnection.On<string>("PlayRound", async _ => await RefreshGameInfo());
+		gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
+			{
+				MyHand = hand;
+				StateHasChanged();
+			});
 
-		// *** 2) Subscribe to "AllAnswersIn" => fill AllAnswersInList
+		// "AllAnswersIn"
 		gameHubConnection.On<List<PlayedCardsDTO>>("AllAnswersIn", (answers) =>
 		{
 			AllAnswersInList = answers;
 			StateHasChanged();
 		});
 
-		// in OnInitializedAsync or similar:
-		gameHubConnection.On<object>("WinnerChosen", (data) =>
+		// "WinnerChosen"
+		gameHubConnection.On<object>("WinnerChosen", data =>
 		{
-			// Show some message, or refresh the game info
-			Console.WriteLine("A winner was chosen!");
-			// Possibly do:
-			_ = RefreshGameInfo(); // reload the question, scores, etc.
-			StateHasChanged();
+			Console.WriteLine("A winner was chosen => refresh state");
+			_ = RefreshFullGameState();
 		});
 
-		gameHubConnection.On<object>("RoundStarted", async _ =>
+		// "RoundStarted"
+		gameHubConnection.On("RoundStarted", async () =>
 		{
-			Console.WriteLine("RoundStarted event => Refreshing game info");
-			await RefreshGameInfo();
+			Console.WriteLine("Received RoundStarted => RefreshFullGameState");
+			await RefreshFullGameState();
 		});
-
-
 
 		await gameHubConnection.StartAsync();
 		await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);
 
-		await RefreshGameInfo();
+		await RefreshFullGameState();
 	}
 
-	private async Task RefreshGameInfo()
+	private async Task RefreshFullGameState()
 	{
-		var gameInfo = await gameHubConnection.InvokeAsync<GameInfoDTO>("GetGameInfo", GameId);
-		CurrentQuestion = gameInfo.CurrentQuestionCard;
-		Players = gameInfo.Players;
-		CurrentCardCzar = gameInfo.CardCzar;
+		// We pass 'myNickname' to the method "GetFullGameState"
+		var dto = await gameHubConnection.InvokeAsync<ExtendedGameStateDTO>(
+			"GetFullGameState", GameId, myNickname);
+
+		CurrentQuestion = dto.CurrentQuestion;
+		CurrentCardCzar = dto.CurrentCzar;
+		Players = dto.Players;
+		MyHand = dto.MyHand;
+
 		IsCardCzar = (CurrentCardCzar == myNickname);
 
-		// reset
 		playedCount = 0;
-
-		// *** Clear out old data if a new round started
 		AllAnswersInList = null;
-
 		StateHasChanged();
 	}
+
+
 
 	private async Task PlaySingleCard(int cardId)
 	{
