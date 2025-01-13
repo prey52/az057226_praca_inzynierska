@@ -1,0 +1,142 @@
+﻿@page "/my-decks"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@using AZ_Inz.Classes.DTO
+
+<h3>My Decks</h3>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <p style="color:red">@ErrorMessage</p>
+}
+
+@if (!string.IsNullOrEmpty(SuccessMessage))
+{
+    <p style="color:green">@SuccessMessage</p>
+}
+
+@if (IsLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <h4>Answer Decks</h4>
+    @if (AnswerDecks?.Count > 0)
+    {
+        <ul>
+            @foreach (var deck in AnswerDecks)
+            {
+                <li>
+                    @deck.Name
+                    <button @onclick="@(() => NavigateToEdit(deck.Id, "Answers"))">Edit</button>
+                    <button @onclick="@(() => DeleteDeck(deck.Id, "Answers"))">Delete</button>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>No answer decks found.</p>
+    }
+
+    <h4>Question Decks</h4>
+    @if (QuestionDecks?.Count > 0)
+    {
+        <ul>
+            @foreach (var deck in QuestionDecks)
+            {
+                <li>
+                    @deck.Name
+                    <button @onclick="@(() => NavigateToEdit(deck.Id, "Questions"))">Edit</button>
+                    <button @onclick="@(() => DeleteDeck(deck.Id, "Questions"))">Delete</button>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>No question decks found.</p>
+    }
+}
+
+@code {
+    private List<AnswerDeckDTO> AnswerDecks = new();
+    private List<QuestionDeckDTO> QuestionDecks = new();
+    private string ErrorMessage = string.Empty;
+    private string SuccessMessage = string.Empty;
+    private bool IsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDecks();
+    }
+
+    private async Task LoadDecks()
+    {
+        try
+        {
+            IsLoading = true;
+
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                ErrorMessage = "User is not authenticated.";
+                return;
+            }
+
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await Http.GetAsync("https://localhost:7060/api/decks/all-decks");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AvailableDecksDTO>();
+                AnswerDecks = result.AnswerDecks;
+                QuestionDecks = result.QuestionDecks;
+            }
+            else
+            {
+                ErrorMessage = "Failed to load decks.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void NavigateToEdit(int deckId, string deckType)
+    {
+        Navigation.NavigateTo($"/edit-deck/{deckType}/{deckId}");
+    }
+
+    private async Task DeleteDeck(int deckId, string deckType)
+    {
+        try
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.DeleteAsync($"https://localhost:7060/api/decks/{deckType}/{deckId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Deck deleted successfully.";
+                await LoadDecks(); // Refresh the decks list
+            }
+            else
+            {
+                ErrorMessage = $"Failed to delete deck: {await response.Content.ReadAsStringAsync()}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+        }
+    }
+}

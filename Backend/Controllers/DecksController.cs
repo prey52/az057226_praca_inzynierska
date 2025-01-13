@@ -7,6 +7,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Identity;
 using Backend.Classes.Database;
 using Backend.Classes.DTO;
+using Microsoft.EntityFrameworkCore;
 
 [Route("api/[controller]")]
 //[Authorize]
@@ -182,5 +183,106 @@ public class DecksController : ControllerBase
             QuestionDecks = questionDecks
         });
     }
+
+    [HttpGet("{deckType}/{deckId}")]
+    [Authorize]
+    public async Task<IActionResult> GetDeckCards(string deckType, int deckId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (deckType == "Answers")
+        {
+            var cards = await _context.AnswerCards
+                .Where(c => c.AnswerDeckId == deckId && c.AnswerDeck.UserId == userId)
+                .Select(c => new CardDbDTO { Id = c.Id, Text = c.Text })
+                .ToListAsync();
+            return Ok(cards);
+        }
+        else if (deckType == "Questions")
+        {
+            var cards = await _context.QuestionCards
+                .Where(c => c.QuestionDeckId == deckId && c.QuestionDeck.UserId == userId)
+                .Select(c => new CardDbDTO { Id = c.Id, Text = c.Text })
+                .ToListAsync();
+            return Ok(cards);
+        }
+
+        return BadRequest("Invalid deck type.");
+    }
+
+    [HttpPut("{deckType}/{deckId}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateDeckCards(string deckType, int deckId, [FromBody] List<CardDbDTO> updatedCards)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (deckType == "Answers")
+        {
+            var cards = await _context.AnswerCards
+                .Where(c => c.AnswerDeckId == deckId && c.AnswerDeck.UserId == userId)
+                .ToListAsync();
+
+            foreach (var card in cards)
+            {
+                var updatedCard = updatedCards.FirstOrDefault(c => c.Id == card.Id);
+                if (updatedCard != null)
+                {
+                    card.Text = updatedCard.Text;
+                }
+            }
+        }
+        else if (deckType == "Questions")
+        {
+            var cards = await _context.QuestionCards
+                .Where(c => c.QuestionDeckId == deckId && c.QuestionDeck.UserId == userId)
+                .ToListAsync();
+
+            foreach (var card in cards)
+            {
+                var updatedCard = updatedCards.FirstOrDefault(c => c.Id == card.Id);
+                if (updatedCard != null)
+                {
+                    card.Text = updatedCard.Text;
+                }
+            }
+        }
+        else
+        {
+            return BadRequest("Invalid deck type.");
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("{deckType}/{deckId}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteDeck(string deckType, int deckId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (deckType == "Answers")
+        {
+            var deck = await _context.AnswerDecks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
+            if (deck == null) return NotFound("Deck not found or you don't have access to it.");
+
+            _context.AnswerDecks.Remove(deck);
+        }
+        else if (deckType == "Questions")
+        {
+            var deck = await _context.QuestionDecks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
+            if (deck == null) return NotFound("Deck not found or you don't have access to it.");
+
+            _context.QuestionDecks.Remove(deck);
+        }
+        else
+        {
+            return BadRequest("Invalid deck type.");
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Deck deleted successfully." });
+    }
+
 }
 

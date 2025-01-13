@@ -184,17 +184,19 @@ else
     {
         try
         {
-            List<AnswerDeckDTO> chosenAnswerDecks = AllAnswerDecks
-            .Where(d => d.IsSelected)
-            .Select(d => new AnswerDeckDTO
-                {
-                    Id = d.Id,
-                    Name = d.Name
-                })
-            .ToList();
+            // Check if at least one answer deck is selected
+            var chosenAnswerDecks = AllAnswerDecks
+                .Where(d => d.IsSelected)
+                .Select(d => new AnswerDeckDTO
+                    {
+                        Id = d.Id,
+                        Name = d.Name
+                    })
+                .ToList();
 
-
-            List<QuestionDeckDTO> chosenQuestionDecks = AllQuestionDecks
+            // Check if at least one question deck is selected
+            var chosenQuestionDecks = AllQuestionDecks
+                .Where(d => d.IsSelected) // Add a Where clause for question decks
                 .Select(d => new QuestionDeckDTO
                     {
                         Id = d.Id,
@@ -202,6 +204,20 @@ else
                     })
                 .ToList();
 
+            // Validation: Ensure both types of decks have at least one selected
+            if (!chosenAnswerDecks.Any())
+            {
+                ErrorMessage = "Please select at least one Answer Deck.";
+                return;
+            }
+
+            if (!chosenQuestionDecks.Any())
+            {
+                ErrorMessage = "Please select at least one Question Deck.";
+                return;
+            }
+
+            // Proceed with starting the game if validation passes
             GameSettingsDTO gameInfo = new()
                 {
                     lobbyID = LobbyId,
@@ -218,6 +234,7 @@ else
             ErrorMessage = $"Could not save lobby options: {ex.Message}";
         }
     }
+
 
     private async Task OnCreateGameTrigger(string msg)
     {

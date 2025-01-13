@@ -74,7 +74,6 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<LobbyManager>();
-//builder.Services.AddSingleton<GameManager>();
 builder.Services.AddSingleton<GameManager>();
 
 
