@@ -9,6 +9,18 @@ using System.Collections.Generic;
 
 namespace Backend.Classes
 {
+    public class RoundData
+    {
+        // Now we store a List<AnswerCardDTO> instead of List<int>,
+        // so we have direct access to card Text, etc.
+        public Dictionary<string, List<AnswerCardDTO>> PlayedCardsByPlayer { get; set; } = new();
+
+        public Dictionary<string, int> TimesPlayed { get; set; } = new();
+
+        public bool AllAnswersIn { get; set; } = false;
+    }
+
+
     public class Game
     {
         public int ScoreToWin { get; set; }
@@ -20,7 +32,11 @@ namespace Backend.Classes
         public int MaxCardsOnHand = 6;
         public QuestionCardDTO CurrentQuestion { get; set; }
         public string CurrenCardCzar { get; set; }
+
+        // Store current round data
+        public RoundData CurrentRound { get; set; } = new RoundData();
     }
+
 
     public class GameManager
     {
@@ -180,12 +196,175 @@ namespace Backend.Classes
             return gameInfo;
         }
 
-        public async Task<PlayedCardsDTO> CardsPlayed(string gameId, string nickname, List<int> cards)
+        public async Task<PlayedCardsDTO> CardsPlayed(string gameId, string nickname, List<int> cardIds)
         {
-            //tmp code
-            PlayedCardsDTO dto = new();
-            return dto;
+            var game = _gameManager.GetGame(gameId);
+            if (game == null)
+                throw new HubException("Game not found.");
+
+            // Forbid the czar
+            if (game.CurrenCardCzar == nickname)
+                throw new HubException("The question-card player can't play answers.");
+
+            // Single-card approach
+            if (cardIds.Count != 1)
+                throw new HubException("You must select exactly 1 card at a time.");
+
+            var hand = game.PlayerHand[nickname];
+
+            // We'll gather the actual card objects here
+            var playedCardDTOs = new List<AnswerCardDTO>();
+
+            foreach (var cardId in cardIds)
+            {
+                var cardToRemove = hand.FirstOrDefault(x => x.Id == cardId);
+                if (cardToRemove != null)
+                {
+                    hand.Remove(cardToRemove);
+                    // store in a local list so we can put it in RoundData
+                    playedCardDTOs.Add(cardToRemove);
+                }
+            }
+
+            // Now place them in RoundData
+            if (!game.CurrentRound.PlayedCardsByPlayer.ContainsKey(nickname))
+            {
+                game.CurrentRound.PlayedCardsByPlayer[nickname] = new List<AnswerCardDTO>();
+            }
+            // Add the actual card objects
+            game.CurrentRound.PlayedCardsByPlayer[nickname].AddRange(playedCardDTOs);
+
+            // Update times played
+            if (!game.CurrentRound.TimesPlayed.ContainsKey(nickname))
+                game.CurrentRound.TimesPlayed[nickname] = 0;
+            game.CurrentRound.TimesPlayed[nickname] += playedCardDTOs.Count; // which is 1 in your scenario
+
+            // Return or broadcast the updated hand
+            await Clients.Caller.SendAsync("ReceiveHand", hand);
+
+            // Check if everyone is done
+            await CheckIfAllAnswersIn(game, gameId);
+
+            return new PlayedCardsDTO
+            {
+                Nickname = nickname,
+                // We can return the IDs or the text, up to you. 
+                // But let's keep the same shape: card IDs
+                CardIds = playedCardDTOs.Select(c => c.Id).ToList()
+            };
         }
+
+
+
+        private async Task CheckIfAllAnswersIn(Game game, string gameId)
+        {
+            if (game.CurrentRound.AllAnswersIn) return;
+
+            var questionNumber = game.CurrentQuestion.Number;
+            var czar = game.CurrenCardCzar;
+
+            int totalPlayers = game.Players.Count(p => p.Nickname != czar);
+            int doneCount = 0;
+
+            foreach (var p in game.Players)
+            {
+                if (p.Nickname == czar) continue;
+
+                game.CurrentRound.TimesPlayed.TryGetValue(p.Nickname, out int times);
+                if (times >= questionNumber)
+                {
+                    doneCount++;
+                }
+            }
+
+            if (doneCount == totalPlayers)
+            {
+                // Everyone answered
+                game.CurrentRound.AllAnswersIn = true;
+
+                // We'll build a list of PlayedCardsDTO, but with the full card data
+                var allAnswers = new List<PlayedCardsDTO>();
+
+                foreach (var kvp in game.CurrentRound.PlayedCardsByPlayer)
+                {
+                    if (kvp.Key == czar) continue;
+
+                    // We'll store the real card objects
+                    var answerCards = kvp.Value;
+
+                    // Construct a new PlayedCardsDTO that has Nickname + the list of card IDs
+                    // If you want to pass the text too, you could define a new property in PlayedCardsDTO
+                    // or create another DTO that has card text. 
+                    // Let's do the simplest approach: create a new property "PlayedCards" that is a List<AnswerCardDTO>.
+
+                    var dto = new PlayedCardsDTO
+                    {
+                        Nickname = kvp.Key,
+                        // The original shape had CardIds, but let's also add an AnswerCards property
+                        CardIds = answerCards.Select(c => c.Id).ToList(),
+                        AnswerCards = answerCards // <--- new property (we'll define it below)
+                    };
+                    allAnswers.Add(dto);
+                }
+
+                // randomize order
+                allAnswers = allAnswers.OrderBy(_ => Guid.NewGuid()).ToList();
+
+                // broadcast "AllAnswersIn" with the full set
+                await Clients.Group(gameId).SendAsync("AllAnswersIn", allAnswers);
+            }
+        }
+
+
+
+        public async Task ChooseWinner(string gameId, string czarNickname, string winnerNickname, List<int> winningCards)
+        {
+            var game = _gameManager.GetGame(gameId);
+            if (game == null)
+                throw new HubException("Game not found.");
+
+            // Only the czar can pick
+            if (game.CurrenCardCzar != czarNickname)
+                throw new HubException("Only the card czar can choose the winner.");
+
+            // 1) Award a point to the winner
+            var winnerPlayer = game.Players.FirstOrDefault(p => p.Nickname == winnerNickname);
+            if (winnerPlayer == null)
+                throw new HubException("Winner not found in game.");
+
+            winnerPlayer.Score += 1;
+
+            // 2) If you want to fill each player's hand back to MaxCardsOnHand, do that
+            // E.g. fill everyone except the czar, or everyone, depending on your rules:
+            FillHands(game);
+
+            // 3) Start next round => rotate czar, pick new question card
+            // e.g. call your StartNextRound method
+            await StartNextRound(gameId);
+
+            // 4) You might want to broadcast an event that says who won
+            await Clients.Group(gameId).SendAsync("WinnerChosen", new
+            {
+                Winner = winnerNickname,
+                Cards = winningCards
+            });
+        }
+
+        private void FillHands(Game game)
+        {
+            foreach (var player in game.Players)
+            {
+                var nickname = player.Nickname;
+                var hand = game.PlayerHand[nickname];
+                while (hand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
+                {
+                    var nextCard = game.AnswerCards.First();
+                    game.AnswerCards.RemoveAt(0);
+                    hand.Add(nextCard);
+                }
+            }
+        }
+
 
         public async Task StartNextRound(string lobbyId)
         {
@@ -224,6 +403,7 @@ namespace Backend.Classes
                 Question = game.CurrentQuestion
             });
         }
+
 
     }
 }

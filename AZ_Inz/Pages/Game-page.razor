@@ -12,104 +12,187 @@
 
 @if (gameHubConnection is null || gameHubConnection.State != HubConnectionState.Connected)
 {
-    <p>Connecting to the game...</p>
+	<p>Connecting to the game...</p>
 }
 else
 {
-    <h3>Question Player: @CurrentCardCzar</h3>
-    <h4>@CurrentQuestion?.Text</h4>
+	<h3>Card Czar: @CurrentCardCzar</h3>
+	<h4>@CurrentQuestion?.Text</h4>
 
-    <div>
-        <h4>Players:</h4>
-        <ul>
-            @foreach (var player in Players)
-            {
-                <li>
-                    @player.Nickname: @player.Score
-                </li>
-            }
-        </ul>
-    </div>
+	<div>
+		<h4>Players:</h4>
+		<ul>
+			@foreach (var player in Players)
+			{
+				<li>@player.Nickname: @player.Score</li>
+			}
+		</ul>
+	</div>
 
-    <div>
-        <h4>Your Hand</h4>
-        <ul>
-            @foreach (var card in MyHand)
-            {
-                <li>
-                    @card.Text
-                    <button @onclick="@(() => PlayCard(card.Id))">Play</button>
-                </li>
-            }
-        </ul>
-    </div>
+	<div>
+		<h4>My Hand</h4>
+
+		@if (IsCardCzar)
+		{
+			<p>You are the card czar. You cannot play any answers this round.</p>
+		}
+		else if (playedCount >= (CurrentQuestion?.Number ?? 1))
+		{
+			<p>You have already played the required number of cards for this question.</p>
+		}
+		else
+		{
+			<p>
+				You must play @((CurrentQuestion?.Number ?? 1) - playedCount) more card(s)
+				for this question.
+			</p>
+		}
+
+		@foreach (var card in MyHand)
+		{
+			<button @onclick="() => PlaySingleCard(card.Id)"
+					disabled="@(IsCardCzar || playedCount >= (CurrentQuestion?.Number ?? 1))">
+				@card.Text
+			</button>
+		}
+	</div>
+
+	@if (IsCardCzar && AllAnswersInList != null)
+	{
+		<h3>Pick a Winner:</h3>
+		@foreach (var answerSet in AllAnswersInList)
+		{
+			<div style="margin-bottom: 1em;">
+				<p>Player: @answerSet.Nickname</p>
+				<ul>
+					@foreach (var card in answerSet.AnswerCards)
+					{
+						<li>@card.Text</li>
+					}
+				</ul>
+				<button @onclick="() => ChooseWinner(answerSet.Nickname, answerSet.CardIds)">
+					Pick This Set
+				</button>
+			</div>
+		}
+	}
 }
 
 @code {
-    [Parameter] public string GameId { get; set; }
+	[Parameter] public string GameId { get; set; }
 
-    private HubConnection gameHubConnection;
+	private HubConnection gameHubConnection;
 
-    private string myNickname;
+	private string myNickname;
 
-    private QuestionCardDTO CurrentQuestion;
-    private List<Player> Players = new();
-    private string CurrentCardCzar;
+	private QuestionCardDTO CurrentQuestion;
+	private List<Player> Players = new();
+	private string CurrentCardCzar;
+	private bool IsCardCzar;
+	private List<AnswerCardDTO> MyHand = new();
 
-    private bool IsCardCzar;
-    private List<AnswerCardDTO> MyHand = new();
-    private List<PlayedCardsDTO> playedCards = new (); //list containing nickname and List<AnswerCardDTO>
+	private int playedCount = 0;
 
-    protected override async Task OnInitializedAsync()
-    {
-        //Get nickname
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        if (authState.User.Identity.IsAuthenticated)
-        {
-            myNickname = authState.User.Identity.Name;
-        }
-        else
-        {
-            myNickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
-        }
+	// *** 1) Store the "all answers" info here.
+	// *** This fixes "The name 'AllAnswersInList' does not exist in the current context"
+	private List<PlayedCardsDTO> AllAnswersInList = null;
 
-        //SignalR hub connection
-        gameHubConnection = new HubConnectionBuilder()
-            .WithUrl("https://localhost:7060/gamehub")
-            .WithAutomaticReconnect()
-            .Build();
+	protected override async Task OnInitializedAsync()
+	{
+		var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+		if (authState.User.Identity.IsAuthenticated)
+		{
+			myNickname = authState.User.Identity.Name;
+		}
+		else
+		{
+			myNickname = await JS.InvokeAsync<string>("cookieManager.getCookie", "nickname");
+		}
 
-        //Hub events
-        gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
-        {
-            MyHand = hand;
-            StateHasChanged(); //
-        });
-        gameHubConnection.On<string>("PlayRound", OnPlayRound);
+		gameHubConnection = new HubConnectionBuilder()
+			.WithUrl("https://localhost:7060/gamehub")
+			.WithAutomaticReconnect()
+			.Build();
 
-        await gameHubConnection.StartAsync();
+		// Subscribe to events
+		gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
+		{
+			MyHand = hand;
+			StateHasChanged();
+		});
 
-        await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);
-        OnPlayRound(GameId);
-    }
+		gameHubConnection.On<string>("PlayRound", async _ => await RefreshGameInfo());
 
-    public async Task OnPlayRound(string data)
-    {
-        GameInfoDTO gameInfo = await gameHubConnection.InvokeAsync<GameInfoDTO>("GetGameInfo", GameId);
-        CurrentQuestion = gameInfo.CurrentQuestionCard;
-        Players = gameInfo.Players;
-        CurrentCardCzar = gameInfo.CardCzar;
-        if (CurrentCardCzar == myNickname)
-        {
-            IsCardCzar = true;
-        }
-        else IsCardCzar = false;
+		// *** 2) Subscribe to "AllAnswersIn" => fill AllAnswersInList
+		gameHubConnection.On<List<PlayedCardsDTO>>("AllAnswersIn", (answers) =>
+		{
+			AllAnswersInList = answers;
+			StateHasChanged();
+		});
 
-        StateHasChanged();
-    }
+		// in OnInitializedAsync or similar:
+		gameHubConnection.On<object>("WinnerChosen", (data) =>
+		{
+			// Show some message, or refresh the game info
+			Console.WriteLine("A winner was chosen!");
+			// Possibly do:
+			_ = RefreshGameInfo(); // reload the question, scores, etc.
+			StateHasChanged();
+		});
 
-    private async Task PlayCard(int cardId)
-    {
-        await gameHubConnection.SendAsync("CardsPlayed", GameId, myNickname, new List<int> { cardId });
-    }
+		gameHubConnection.On<object>("RoundStarted", async _ =>
+		{
+			Console.WriteLine("RoundStarted event => Refreshing game info");
+			await RefreshGameInfo();
+		});
+
+
+
+		await gameHubConnection.StartAsync();
+		await gameHubConnection.SendAsync("JoinGame", GameId, myNickname);
+
+		await RefreshGameInfo();
+	}
+
+	private async Task RefreshGameInfo()
+	{
+		var gameInfo = await gameHubConnection.InvokeAsync<GameInfoDTO>("GetGameInfo", GameId);
+		CurrentQuestion = gameInfo.CurrentQuestionCard;
+		Players = gameInfo.Players;
+		CurrentCardCzar = gameInfo.CardCzar;
+		IsCardCzar = (CurrentCardCzar == myNickname);
+
+		// reset
+		playedCount = 0;
+
+		// *** Clear out old data if a new round started
+		AllAnswersInList = null;
+
+		StateHasChanged();
+	}
+
+	private async Task PlaySingleCard(int cardId)
+	{
+		if (IsCardCzar) return;
+		if (playedCount >= (CurrentQuestion?.Number ?? 1)) return;
+
+		var chosenCardIds = new List<int> { cardId };
+		await gameHubConnection.SendAsync("CardsPlayed", GameId, myNickname, chosenCardIds);
+
+		// local remove
+		var card = MyHand.FirstOrDefault(c => c.Id == cardId);
+		if (card != null)
+		{
+			MyHand.Remove(card);
+		}
+
+		playedCount++;
+		StateHasChanged();
+	}
+
+	private async Task ChooseWinner(string winnerNickname, List<int> cardIds)
+	{
+		// pass the data to the server
+		await gameHubConnection.SendAsync("ChooseWinner", GameId, myNickname, winnerNickname, cardIds);
+	}
 }
