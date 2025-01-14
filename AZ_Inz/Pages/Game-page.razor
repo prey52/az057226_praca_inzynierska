@@ -17,7 +17,6 @@
 else
 {
 	<h3>Card Czar: @CurrentCardCzar</h3>
-	<h4>@CurrentQuestion?.Text</h4>
 
 	<div>
 		<h4>Players:</h4>
@@ -27,6 +26,10 @@ else
 				<li>@player.Nickname: @player.Score</li>
 			}
 		</ul>
+	</div>
+
+	<div class="black-card">
+		@CurrentQuestion?.Text
 	</div>
 
 	<div>
@@ -52,14 +55,17 @@ else
 				<p> You must play @((CurrentQuestion?.Number ?? 1) - playedCount) more card(s). </p>
 			}
 
-			@foreach (var card in MyHand)
-			{
-				<button @onclick="() => PlaySingleCard(card.Id)"
-						disabled="@(IsCardCzar ||
-                            playedCount >= (CurrentQuestion?.Number ?? 1))">
-					@card.Text
-				</button>
-			}
+			<div class="card-container">
+				@foreach (var card in MyHand)
+				{
+					<button class="card-button"
+							@onclick="() => PlaySingleCard(card.Id)"
+							disabled="@(IsCardCzar || playedCount >= (CurrentQuestion?.Number ?? 1))">
+						@card.Text
+					</button>
+				}
+			</div>
+
 		}
 	</div>
 
@@ -69,13 +75,15 @@ else
 		@foreach (var answerSet in AllAnswersInList)
 		{
 			<div style="margin-bottom: 1em;">
-				<p>Player: @answerSet.Nickname</p>
-				<ul>
+				<div class="answer-set-container">
 					@foreach (var card in answerSet.AnswerCards)
 					{
-						<li>@card.Text</li>
+						<div class="answer-card">
+							@card.Text
+						</div>
 					}
-				</ul>
+				</div>
+
 				<button @onclick="() => ChooseWinner(answerSet.Nickname, answerSet.CardIds)">
 					Pick This Set
 				</button>
@@ -87,9 +95,7 @@ else
 @code {
 	[Parameter] public string GameId { get; set; }
 
-
 	private HubConnection gameHubConnection;
-
 	private string myNickname;
 
 	private QuestionCardDTO CurrentQuestion;
@@ -101,9 +107,6 @@ else
 	private int playedCount = 0;
 	private bool isGameOver = false; // NEW
 
-
-	// *** 1) Store the "all answers" info here.
-	// *** This fixes "The name 'AllAnswersInList' does not exist in the current context"
 	private List<PlayedCardsDTO> AllAnswersInList = null;
 
 	protected override async Task OnInitializedAsync()

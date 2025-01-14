@@ -101,3 +101,72 @@ a, .btn-link {
 code {
     color: #c02d76;
 }
+
+.card-container {
+    display: flex; /* Ustawienie elementów obok siebie */
+    flex-wrap: wrap; /* Pozwala na zawijanie kart w kolejnym rzêdzie, jeœli brak miejsca */
+    gap: 10px; /* Odstêp miêdzy kartami */
+}
+
+.card-button {
+    width: 150px; /* Szerokoœæ karty */
+    height: 200px; /* Wysokoœæ karty */
+    border: 2px solid black; /* Czarna ramka */
+    border-radius: 10px; /* Zaokr¹glone rogi */
+    background-color: white; /* T³o */
+    padding-left: 10px; /* Odstêp tekstu od krawêdzi */
+    padding-bottom: 135px;
+    text-align: left; /* Wyrównanie tekstu do lewej strony */
+    font-size: 16px; /* Rozmiar tekstu */
+    font-family: Arial, sans-serif; /* Czcionka */
+    display: block; /* Ustawienie elementu jako bloku */
+    cursor: pointer;
+    overflow-wrap: break-word; /* Dostosowanie tekstu, jeœli jest zbyt d³ugi */
+}
+
+.card-button:disabled {
+    background-color: lightgray; /* Kolor t³a dla zablokowanych kart */
+    cursor: not-allowed;
+}
+
+.black-card {
+    width: 150px; /* Szerokoœæ karty */
+    height: 200px; /* Wysokoœæ karty */
+    border: 2px solid black; /* Czarna ramka */
+    border-radius: 10px; /* Zaokr¹glone rogi */
+    background-color: black; /* T³o karty */
+    color: white; /* Kolor tekstu */
+    justify-content: center; /* Wyœrodkowanie poziome */
+    align-items: center; /* Wyœrodkowanie pionowe */
+    text-align: left; /* Wyrównanie tekstu na œrodku */
+    font-size: 16px; /* Rozmiar tekstu */
+    font-family: Arial, sans-serif; /* Czcionka */
+    overflow-wrap: break-word; /* Prze³amywanie d³ugiego tekstu */
+    padding: 10px;
+
+}
+
+.answer-card {
+    width: 150px; /* Szerokoœæ karty */
+    height: 200px; /* Wysokoœæ karty */
+    border: 2px solid black; /* Czarna ramka */
+    border-radius: 10px; /* Zaokr¹glone rogi */
+    background-color: white; /* T³o karty */
+    color: black; /* Kolor tekstu */
+    padding: 10px; /* Odstêp tekstu od krawêdzi */
+    margin-right: 10px; /* Odstêp miêdzy kartami */
+    font-size: 14px; /* Rozmiar tekstu */
+    font-family: Arial, sans-serif; /* Czcionka */
+    display: flex;
+    justify-content: flex-start; /* Wyrównanie tekstu do góry i lewej */
+    align-items: flex-start;
+    overflow-wrap: break-word; /* Z³amanie d³ugiego tekstu */
+}
+
+.answer-set-container {
+    display: flex; /* Ustawienie kart obok siebie */
+    flex-wrap: wrap; /* Zawijanie kart w nowy wiersz, jeœli brak miejsca */
+    gap: 10px; /* Odstêp miêdzy kartami */
+    margin-bottom: 10px; /* Odstêp pod zestawem odpowiedzi */
+}
+
