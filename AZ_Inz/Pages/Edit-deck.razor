@@ -25,17 +25,31 @@ else
         <DataAnnotationsValidator />
         <ValidationSummary />
 
-        <ul>
+        <ul style="list-style: none;">
             @foreach (var card in DeckCards)
             {
                 <li>
+                    <!-- checkbox for selection -->
+                    <input type="checkbox" @bind="card.IsSelected" style="margin-right: 5px;" />
                     <InputText @bind-Value="card.Text" class="form-control" />
                 </li>
             }
         </ul>
 
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-        <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+        <div style="margin-top: 1em;">
+            <button type="button" class="btn btn-success" @onclick="AddNewCard">
+                + Add New Card
+            </button>
+
+            <button type="button" class="btn btn-danger" @onclick="DeleteSelectedCards">
+                Delete Selected
+            </button>
+        </div>
+
+        <div style="margin-top: 1em;">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+        </div>
     </EditForm>
 }
 
@@ -53,8 +67,6 @@ else
         try
         {
             IsLoading = true;
-
-            // Retrieve the token from local storage
             var token = await LocalStorage.GetItemAsync<string>("authToken");
             if (string.IsNullOrEmpty(token))
             {
@@ -62,9 +74,10 @@ else
                 return;
             }
 
-            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            var response = await Http.GetAsync($"https://localhost:7060/api/decks/{deckType}/{deckId}");
+            Http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
+            var response = await Http.GetAsync($"https://localhost:7060/api/decks/{deckType}/{deckId}");
             if (response.IsSuccessStatusCode)
             {
                 DeckCards = await response.Content.ReadFromJsonAsync<List<CardDbDTO>>();
@@ -84,6 +97,27 @@ else
         }
     }
 
+    private void AddNewCard()
+    {
+        // Create an in-memory "new" card (Id=0 or some placeholder)
+        DeckCards.Add(new CardDbDTO
+            {
+                Id = 0,   // means brand-new
+                Text = "New Card",
+                IsSelected = false
+            });
+    }
+
+    private void DeleteSelectedCards()
+    {
+        // Gather those with IsSelected
+        var toRemove = DeckCards.Where(c => c.IsSelected).ToList();
+        foreach (var card in toRemove)
+        {
+            DeckCards.Remove(card);
+        }
+    }
+
     private async Task SaveChanges()
     {
         try
@@ -92,9 +126,13 @@ else
             SuccessMessage = string.Empty;
 
             var token = await LocalStorage.GetItemAsync<string>("authToken");
-            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            Http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            var response = await Http.PutAsJsonAsync($"https://localhost:7060/api/decks/{deckType}/{deckId}", DeckCards);
+            // The final PUT sends the entire updated list,
+            // including newly added cards (Id=0) and excluding removed ones
+            var response = await Http.PutAsJsonAsync(
+                $"https://localhost:7060/api/decks/{deckType}/{deckId}", DeckCards);
 
             if (response.IsSuccessStatusCode)
             {
