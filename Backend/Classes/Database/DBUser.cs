@@ -7,5 +7,4 @@ namespace Backend.Classes.Database
         public ICollection<QuestionDeck> QuestionDecks { get; set; }
         public ICollection<AnswerDeck> AnswerDecks { get; set; }
     }
-
 }

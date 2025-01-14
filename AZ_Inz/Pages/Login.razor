@@ -1,6 +1,7 @@
 ﻿@page "/login"
 @using Blazored.LocalStorage
 @using System.Security.Claims
+@using AZ_Inz.Classes.DTO
 
 @inject HttpClient Http
 @inject ILocalStorageService LocalStorage
@@ -9,19 +10,19 @@
 
 <h3>Login</h3>
 
-@if (!string.IsNullOrEmpty(ErrorMessage))
+@if (!string.IsNullOrEmpty(errorMessage))
 {
-    <p style="color:red">@ErrorMessage</p>
+    <p style="color:red">@errorMessage</p>
 }
 
-<input @bind="Username" placeholder="Username" />
-<input @bind="Password" type="password" placeholder="Password" />
+<input @bind="username" placeholder="Username" />
+<input @bind="password" type="password" placeholder="Password" />
 <button @onclick="LoginUser">Login</button>
 
 @code {
-    private string Username { get; set; }
-    private string Password { get; set; }
-    private string ErrorMessage { get; set; }
+    private string username { get; set; }
+    private string password { get; set; }
+    private string errorMessage { get; set; }
 
     public class LoginResponse
     {
@@ -30,7 +31,13 @@
 
     private async Task LoginUser()
     {
-        var response = await Http.PostAsJsonAsync("https://localhost:7060/api/auth/login", new { Username, Password });
+        LoginModelDTO user = new()
+        {
+            Username = username,
+            Password = password
+        };
+
+        var response = await Http.PostAsJsonAsync("https://localhost:7060/api/auth/login", user);
 
         if (response.IsSuccessStatusCode)
         {
@@ -45,12 +52,12 @@
             }
             else
             {
-                ErrorMessage = "Invalid token received.";
+                errorMessage = "Invalid token received.";
             }
         }
         else
         {
-            ErrorMessage = "Invalid login attempt.";
+            errorMessage = "Invalid login attempt.";
         }
     }
 

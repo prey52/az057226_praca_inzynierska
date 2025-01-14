@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Blazored.LocalStorage;
 using AZ_Inz.Classes;
 
-
-
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");

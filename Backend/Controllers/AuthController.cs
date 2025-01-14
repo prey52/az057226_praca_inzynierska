@@ -1,4 +1,5 @@
 ﻿using Backend.Classes.Database;
+using Backend.Classes.DTO;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -22,7 +23,7 @@ namespace Backend.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
+        public async Task<IActionResult> Login([FromBody] LoginModelDTO model)
         {
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
@@ -39,7 +40,7 @@ namespace Backend.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterModel model)
+        public async Task<IActionResult> Register([FromBody] RegisterModelDTO model)
         {
             try
             {
@@ -58,8 +59,7 @@ namespace Backend.Controllers
 
                 if (result.Succeeded)
                 {
-                    var token = await GenerateJwtToken(user); // Generate JWT Token after successful registration
-                    return Ok(new { token });
+                    return Ok();
                 }
 
                 return BadRequest(new
@@ -117,17 +117,8 @@ namespace Backend.Controllers
         }
     }
 
-    public class RegisterModel
-    {
-        public string Username { get; set; }
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
+    
 
 
-    public class LoginModel
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
-    }
+    
 }

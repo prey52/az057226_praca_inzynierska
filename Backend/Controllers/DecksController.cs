@@ -23,24 +23,6 @@ public class DecksController : ControllerBase
         _userManager = userManager;
     }
 
-    //old
-    private async Task<string> GetUserIdFromToken(string token)
-    {
-        var handler = new JwtSecurityTokenHandler();
-        try
-        {
-            var jwtToken = handler.ReadJwtToken(token);
-            var userEmail = jwtToken?.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Email)?.Value;
-            DBUser user = await _userManager.FindByEmailAsync(userEmail);
-
-            return user.Id;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     [Authorize]
     [HttpPost("upload")]
     public async Task<IActionResult> UploadDeck([FromForm] DeckUploadDTO model)
