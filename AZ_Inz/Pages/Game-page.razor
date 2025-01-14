@@ -69,7 +69,7 @@ else
 		}
 	</div>
 
-	@if (IsCardCzar && AllAnswersInList != null)
+	@if (AllAnswersInList != null)
 	{
 		<h3>Pick a Winner:</h3>
 		@foreach (var answerSet in AllAnswersInList)
@@ -83,10 +83,12 @@ else
 						</div>
 					}
 				</div>
-
-				<button @onclick="() => ChooseWinner(answerSet.Nickname, answerSet.CardIds)">
-					Pick This Set
-				</button>
+				@if (IsCardCzar)
+				{
+					<button @onclick="() => ChooseWinner(answerSet.Nickname, answerSet.CardIds)">
+						Pick This Set
+					</button>
+				}
 			</div>
 		}
 	}

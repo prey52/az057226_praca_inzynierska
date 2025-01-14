@@ -27,22 +27,15 @@ namespace Backend.Classes
 		public int ScoreToWin { get; set; }
 		public List<Player> Players { get; set; } = new List<Player>();
 		public int AmountOfPlayers { get; set; }
-
-		// The "live" decks we’re pulling from each round
 		public List<AnswerCardDTO> AnswerCards { get; set; }
 		public List<QuestionCardDTO> QuestionCards { get; set; }
-
-		// NEW: The original (full) decks, so we can reload if we run out
 		public List<AnswerCardDTO> OriginalAnswersDeck { get; set; }
 		public List<QuestionCardDTO> OriginalQuestionsDeck { get; set; }
-
 		public Dictionary<string, List<AnswerCardDTO>> PlayerHand { get; set; }
 		public int MaxCardsOnHand = 6;
 		public QuestionCardDTO CurrentQuestion { get; set; }
 		public string CurrenCardCzar { get; set; }
 		public RoundData CurrentRound { get; set; } = new RoundData();
-
-		// NEW: If you want to mark it ended
 		public bool IsFinished { get; set; } = false;
 	}
 
@@ -329,11 +322,7 @@ namespace Backend.Classes
 			}
 		}
 
-		public async Task ChooseWinner(
-	string gameId,
-	string czarNickname,
-	string winnerNickname,
-	List<int> winningCards)
+		public async Task ChooseWinner(string gameId, string czarNickname, string winnerNickname, List<int> winningCards)
 		{
 			var game = _gameManager.GetGame(gameId);
 			if (game == null)
@@ -388,30 +377,6 @@ namespace Backend.Classes
 			});
 		}
 
-
-		private void FillHands(Game game)
-		{
-			foreach (var player in game.Players)
-			{
-				var nickname = player.Nickname;
-				var hand = game.PlayerHand[nickname];
-
-				// If we’re about to run out of answer cards, reload them
-				if (game.AnswerCards.Count < (game.MaxCardsOnHand - hand.Count))
-				{
-					ReloadAnswerDeck(game);  // NEW
-				}
-
-				while (hand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
-				{
-					var nextCard = game.AnswerCards.First();
-					game.AnswerCards.RemoveAt(0);
-					hand.Add(nextCard);
-				}
-			}
-		}
-
-
 		public async Task StartNextRound(string lobbyId)
 		{
 			var game = _gameManager.GetGame(lobbyId);
@@ -447,6 +412,28 @@ namespace Backend.Classes
 
 			// broadcast "RoundStarted"
 			await Clients.Group(lobbyId).SendAsync("RoundStarted");
+		}
+
+		private void FillHands(Game game)
+		{
+			foreach (var player in game.Players)
+			{
+				var nickname = player.Nickname;
+				var hand = game.PlayerHand[nickname];
+
+				// If we’re about to run out of answer cards, reload them
+				if (game.AnswerCards.Count < (game.MaxCardsOnHand - hand.Count))
+				{
+					ReloadAnswerDeck(game);  // NEW
+				}
+
+				while (hand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
+				{
+					var nextCard = game.AnswerCards.First();
+					game.AnswerCards.RemoveAt(0);
+					hand.Add(nextCard);
+				}
+			}
 		}
 
 		private void ReloadAnswerDeck(Game game)
