@@ -126,34 +126,24 @@ else
 			.WithAutomaticReconnect()
 			.Build();
 
-		// Subscribe to events
 		gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
 		{
 			MyHand = hand;
 			StateHasChanged();
 		});
 
-		gameHubConnection.On<List<AnswerCardDTO>>("ReceiveHand", hand =>
-			{
-				MyHand = hand;
-				StateHasChanged();
-			});
-
-		// "AllAnswersIn"
 		gameHubConnection.On<List<PlayedCardsDTO>>("AllAnswersIn", (answers) =>
 		{
 			AllAnswersInList = answers;
 			StateHasChanged();
 		});
 
-		// "WinnerChosen"
 		gameHubConnection.On<object>("WinnerChosen", data =>
 		{
 			Console.WriteLine("A winner was chosen => refresh state");
 			_ = RefreshFullGameState();
 		});
 
-		// "RoundStarted"
 		gameHubConnection.On("RoundStarted", async () =>
 		{
 			Console.WriteLine("Received RoundStarted => RefreshFullGameState");
@@ -162,7 +152,6 @@ else
 
 		gameHubConnection.On<object>("GameOver", data =>
 		{
-			// The server might pass Winner in data, but let’s just store a bool
 			isGameOver = true;
 			Console.WriteLine("GameOver => Disabling UI. The winner is: " + data);
 			StateHasChanged();
@@ -177,7 +166,6 @@ else
 
 	private async Task RefreshFullGameState()
 	{
-		// We pass 'myNickname' to the method "GetFullGameState"
 		var dto = await gameHubConnection.InvokeAsync<ExtendedGameStateDTO>(
 			"GetFullGameState", GameId, myNickname);
 

@@ -58,7 +58,6 @@ else
     {
         try
         {
-            //If user is authenticated
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
@@ -68,34 +67,15 @@ else
                                          ?? "Authenticated User";
             }
 
-            //SignalR hub connection
             hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7060/lobbyhub")
                 .WithAutomaticReconnect()
                 .Build();
 
-            //Hub events
             hubConnection.On<LobbyCreatedResponseDTO>("LobbyCreated", OnLobbyCreated);
             hubConnection.On<JoinedLobbyResponseDTO>("JoinedLobby", OnJoinedLobby);
 
-            hubConnection.On<Exception>("OnError", e =>
-            {
-                Console.WriteLine("Hub error: " + e.Message);
-            });
-
-            //Built-in events:
-            hubConnection.Closed += async (ex) =>
-            {
-                Console.WriteLine("Connection closed with error: " + ex?.Message);
-            };
-            hubConnection.Reconnecting += (ex) =>
-            {
-                Console.WriteLine("Reconnecting because: " + ex?.Message);
-                return Task.CompletedTask;
-            };
-
             await hubConnection.StartAsync();
-            Console.WriteLine("Hub connection started. State: " + hubConnection.State);
         }
         catch (Exception ex)
         {

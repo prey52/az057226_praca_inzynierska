@@ -183,13 +183,11 @@ namespace Backend.Classes
 
 			await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
 
-			// Add the player if not present
 			if (!game.Players.Any(p => p.Nickname == nickname))
 			{
 				game.Players.Add(new Player { Nickname = nickname });
 			}
 
-			// Ensure we have a hand for that nickname
 			if (!game.PlayerHand.ContainsKey(nickname))
 			{
 				game.PlayerHand[nickname] = new List<AnswerCardDTO>();

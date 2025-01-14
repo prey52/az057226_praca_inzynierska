@@ -235,7 +235,6 @@ else
         }
     }
 
-
     private async Task OnCreateGameTrigger(string msg)
     {
         await gameHubConnection.SendAsync("CreateGame", LobbyId);
