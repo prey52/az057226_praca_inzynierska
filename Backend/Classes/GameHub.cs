@@ -99,18 +99,15 @@ namespace Backend.Classes
 				Players = lobby.Players.OrderBy(p => p.Nickname).ToList(),
 				AmountOfPlayers = lobby.AmountOfPlayers,
 
-				// Live decks
 				AnswerCards = usableAnswersDeck,
 				QuestionCards = usableQuestionsDeck,
 
-				// NEW: store the "original" decks for later reload
 				OriginalAnswersDeck = new List<AnswerCardDTO>(usableAnswersDeck),
 				OriginalQuestionsDeck = new List<QuestionCardDTO>(usableQuestionsDeck),
 
 				PlayerHand = new Dictionary<string, List<AnswerCardDTO>>()
 			};
 
-			// pick a random question
 			game.CurrentQuestion = game.QuestionCards.First();
 			game.QuestionCards.RemoveAt(0);
 
@@ -196,10 +193,6 @@ namespace Backend.Classes
 
 			await Clients.Caller.SendAsync("ReceiveHand", currentHand);
 
-			if (game.AmountOfPlayers == game.Players.Count)
-			{
-				// Possibly call GetGameInfo or something
-			}
 		}
 
 		public async Task<GameInfoDTO> GetGameInfo(string gameId)
@@ -216,7 +209,6 @@ namespace Backend.Classes
 			};
 		}
 
-		// The new method to get the entire state for a given user
 		[HubMethodName("GetFullGameState")]
 		public async Task<ExtendedGameStateDTO> GetFullGameState(string gameId, string nickname)
 		{
@@ -335,41 +327,28 @@ namespace Backend.Classes
 			if (winnerPlayer == null)
 				throw new HubException("Winner not found in game.");
 
-			// Increase the winner’s score
 			winnerPlayer.Score += 1;
 
-			// Check ScoreToWin if > 0
 			if (game.ScoreToWin > 0 && winnerPlayer.Score >= game.ScoreToWin)
 			{
-				// Mark the game as ended
 				game.IsFinished = true;
 
-				// Option A: Mark the winner’s Score so it says "winner" in UI 
-				// but your 'Score' is int, so we can set to 9999 or something 
-				// or rely on a separate UI check. 
 				winnerPlayer.Score = 9999;
 
-				// Broadcast game over
 				await Clients.Group(gameId).SendAsync("GameOver", new
 				{
 					Winner = winnerNickname
 				});
 
-				// Remove the game from memory so it can’t be used anymore
 				_gameManager.RemoveGame(gameId);
 
-				// No new round => return
 				return;
 			}
 
-			// Otherwise, continue the game
-			// 1) Refill everyone’s hand
 			FillHands(game);
 
-			// 2) Start next round => rotate czar, pick new question card
 			await StartNextRound(gameId);
 
-			// 3) Broadcast "WinnerChosen"
 			await Clients.Group(gameId).SendAsync("WinnerChosen", new
 			{
 				Winner = winnerNickname,
@@ -383,8 +362,7 @@ namespace Backend.Classes
 			if (game == null)
 				throw new HubException("Game not found.");
 
-			// If the game is flagged finished, do nothing
-			if (game.IsFinished) return;  // NEW
+			if (game.IsFinished) return;
 
 			var players = game.Players;
 			int currentCzarIndex = players.FindIndex(p => p.Nickname == game.CurrenCardCzar);
@@ -394,23 +372,19 @@ namespace Backend.Classes
 			int nextIndex = (currentCzarIndex + 1) % players.Count;
 			game.CurrenCardCzar = players[nextIndex].Nickname;
 
-			// If no question cards left, reload them
 			if (!game.QuestionCards.Any())
 			{
-				ReloadQuestionDeck(game); // NEW
+				ReloadQuestionDeck(game); 
 			}
 
-			// pick the next question
 			if (game.QuestionCards.Any())
 			{
 				game.CurrentQuestion = game.QuestionCards.First();
 				game.QuestionCards.RemoveAt(0);
 			}
 
-			// reset
 			game.CurrentRound = new RoundData();
 
-			// broadcast "RoundStarted"
 			await Clients.Group(lobbyId).SendAsync("RoundStarted");
 		}
 
@@ -421,10 +395,9 @@ namespace Backend.Classes
 				var nickname = player.Nickname;
 				var hand = game.PlayerHand[nickname];
 
-				// If we’re about to run out of answer cards, reload them
 				if (game.AnswerCards.Count < (game.MaxCardsOnHand - hand.Count))
 				{
-					ReloadAnswerDeck(game);  // NEW
+					ReloadAnswerDeck(game);
 				}
 
 				while (hand.Count < game.MaxCardsOnHand && game.AnswerCards.Any())
@@ -438,7 +411,6 @@ namespace Backend.Classes
 
 		private void ReloadAnswerDeck(Game game)
 		{
-			// Re-shuffle the original answers
 			game.AnswerCards = game.OriginalAnswersDeck
 				.OrderBy(_ => Guid.NewGuid())
 				.ToList();
@@ -450,6 +422,5 @@ namespace Backend.Classes
 				.OrderBy(_ => Guid.NewGuid())
 				.ToList();
 		}
-
 	}
 }

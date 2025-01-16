@@ -99,10 +99,9 @@ else
 
     private void AddNewCard()
     {
-        // Create an in-memory "new" card (Id=0 or some placeholder)
         DeckCards.Add(new CardDbDTO
             {
-                Id = 0,   // means brand-new
+                Id = 0,
                 Text = "New Card",
                 IsSelected = false
             });
@@ -110,7 +109,6 @@ else
 
     private void DeleteSelectedCards()
     {
-        // Gather those with IsSelected
         var toRemove = DeckCards.Where(c => c.IsSelected).ToList();
         foreach (var card in toRemove)
         {
@@ -129,8 +127,6 @@ else
             Http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            // The final PUT sends the entire updated list,
-            // including newly added cards (Id=0) and excluding removed ones
             var response = await Http.PutAsJsonAsync(
                 $"https://localhost:7060/api/decks/{deckType}/{deckId}", DeckCards);
 

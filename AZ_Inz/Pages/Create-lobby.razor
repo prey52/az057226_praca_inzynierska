@@ -49,10 +49,10 @@ else
     private bool isLoading = true;
     private bool _isAuthenticated;
 
-    private string Nickname;              // for anonymous users
+    private string Nickname;
     private string LobbyId;
     private string ErrorMessage;
-    private string _loggedUserDisplayName; // for logged-in users
+    private string _loggedUserDisplayName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,7 +101,6 @@ else
 
             var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
 
-            // Save the nickname to a cookie for unauthenticated users
             if (!_isAuthenticated)
             {
                 await JS.InvokeVoidAsync("cookieManager.setCookie", "nickname", Nickname, 1);
@@ -133,7 +132,6 @@ else
 
         var nameToUse = _isAuthenticated ? _loggedUserDisplayName : Nickname;
 
-        // Save the nickname to a cookie for unauthenticated users
         if (!_isAuthenticated)
         {
             await JS.InvokeVoidAsync("cookieManager.setCookie", "nickname", Nickname, 1);

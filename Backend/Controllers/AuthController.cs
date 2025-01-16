@@ -70,7 +70,6 @@ namespace Backend.Controllers
             }
             catch (Exception ex)
             {
-                // Log exception to understand what failed
                 Console.WriteLine($"Error during registration: {ex.Message}");
                 return StatusCode(500, new { message = "An unexpected error occurred during registration." });
             }
@@ -80,14 +79,13 @@ namespace Backend.Controllers
         {
             try
             {
-                // Add the claims for both registration and login
                 var claims = new[]
                 {
                 new Claim(ClaimTypes.Name, user.UserName), // Username
                 new Claim(ClaimTypes.NameIdentifier, user.Id), // User ID (unique identifier)
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty), // Email
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // Unique JWT ID
-                new Claim(JwtRegisteredClaimNames.Aud, _configuration["Jwt:Issuer"]) // Ensure this is set correctly
+                new Claim(JwtRegisteredClaimNames.Aud, _configuration["Jwt:Issuer"])
                 };
 
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
@@ -99,8 +97,8 @@ namespace Backend.Controllers
                 var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
                 var token = new JwtSecurityToken(
-                    issuer: _configuration["Jwt:Issuer"], // Backend URL
-                    audience: _configuration["Jwt:Audience"], // Frontend URL
+                    issuer: _configuration["Jwt:Issuer"],
+                    audience: _configuration["Jwt:Audience"],
                     claims: claims,
                     expires: DateTime.UtcNow.AddDays(1),
                     signingCredentials: creds
@@ -110,7 +108,6 @@ namespace Backend.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error
                 Console.WriteLine($"Error generating JWT token: {ex.Message}");
                 throw;
             }

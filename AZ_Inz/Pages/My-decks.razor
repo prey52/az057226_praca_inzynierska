@@ -127,7 +127,7 @@ else
             if (response.IsSuccessStatusCode)
             {
                 SuccessMessage = "Deck deleted successfully.";
-                await LoadDecks(); // Refresh the decks list
+                await LoadDecks();
             }
             else
             {

@@ -46,7 +46,7 @@
             if (result != null && !string.IsNullOrEmpty(result.Token))
             {
                 await LocalStorage.SetItemAsync("authToken", result.Token);
-                AuthStateProvider.NotifyUserAuthentication(result.Token); // Notify the authentication state provider
+                AuthStateProvider.NotifyUserAuthentication(result.Token); 
 
                 Navigation.NavigateTo("/");
             }

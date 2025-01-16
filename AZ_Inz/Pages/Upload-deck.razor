@@ -71,17 +71,14 @@
                 return;
             }
 
-            // Create the multipart form data content
             var formData = new MultipartFormDataContent();
             formData.Add(new StringContent(deckData.DeckName), "DeckName");
             formData.Add(new StringContent(deckData.DeckType), "DeckType");
 
-            // Add the file to the request
             var fileContent = new StreamContent(uploadedFile.OpenReadStream(maxAllowedSize: 10485760)); // 10MB limit
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(uploadedFile.ContentType);
             formData.Add(fileContent, "File", uploadedFile.Name);
 
-            // Set the Authorization header with the Bearer token
             Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
             // Post to the API
